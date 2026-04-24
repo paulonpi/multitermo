@@ -27,6 +27,10 @@ export function evaluateGuess(guess: string, answer: string): TileState[] {
   return result
 }
 
+export function countCorrectTiles(results: TileState[][]): number {
+  return results.reduce((sum, row) => sum + row.filter(t => t === 'correct').length, 0)
+}
+
 export function normalize(word: string): string {
   return word
     .normalize('NFD')

@@ -18,6 +18,7 @@ export interface RoundEndData {
   winnerName: string | null
   scores: Record<string, number>
   playerResults: Record<string, RoundResult>
+  timedOut?: boolean
 }
 
 export interface MatchEndData {

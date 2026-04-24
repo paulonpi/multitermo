@@ -24,6 +24,7 @@ export interface GameState {
   toast: string | null
   roundEndData: RoundEndData | null
   matchEndData: MatchEndData | null
+  timeLeft: number  // seconds; -1 = no active timer
 }
 
 const EMPTY_LETTERS = ['', '', '', '', '']
@@ -46,6 +47,7 @@ const INITIAL: GameState = {
   toast: null,
   roundEndData: null,
   matchEndData: null,
+  timeLeft: -1,
 }
 
 function resetInput() {
@@ -55,10 +57,21 @@ function resetInput() {
 export function useGame() {
   const [state, setState] = useState<GameState>(INITIAL)
   const stateRef = useRef(state)
+  const roundEndTimeRef = useRef<number>(0)
 
   useEffect(() => {
     stateRef.current = state
   }, [state])
+
+  // Countdown ticker — runs while on game screen
+  useEffect(() => {
+    if (state.screen !== 'game') return
+    const interval = setInterval(() => {
+      const t = Math.max(0, Math.round((roundEndTimeRef.current - Date.now()) / 1000))
+      setState(s => s.screen === 'game' ? { ...s, timeLeft: t } : s)
+    }, 500)
+    return () => clearInterval(interval)
+  }, [state.screen, state.currentRound])
 
   useEffect(() => {
     const socket = getSocket()
@@ -71,7 +84,8 @@ export function useGame() {
       setState(s => ({ ...s, screen: 'game', players }))
     })
 
-    socket.on('round_start', ({ round, totalRounds }: { round: number; totalRounds: number }) => {
+    socket.on('round_start', ({ round, totalRounds, roundEndTime }: { round: number; totalRounds: number; roundEndTime: number }) => {
+      roundEndTimeRef.current = roundEndTime
       setState(s => ({
         ...s,
         screen: 'game',
@@ -86,6 +100,7 @@ export function useGame() {
         shakeRow: false,
         toast: null,
         roundEndData: null,
+        timeLeft: Math.round((roundEndTime - Date.now()) / 1000),
       }))
     })
 

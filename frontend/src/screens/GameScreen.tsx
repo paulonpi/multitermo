@@ -6,6 +6,12 @@ import { ScoreHeader } from '../components/ScoreHeader'
 import { Toast } from '../components/Toast'
 import type { GameState } from '../hooks/useGame'
 
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 interface GameScreenProps {
   state: GameState
   onKeyPress: (key: string) => void
@@ -15,7 +21,7 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
   const {
     players, myName, currentRound, totalRounds,
     guesses, results, currentLetters, cursorPos, shakeRow,
-    opponentAttempts, opponentDone, toast, myDone,
+    opponentAttempts, opponentDone, toast, myDone, timeLeft,
   } = state
 
   const opponent = players.find(p => p.name !== myName)
@@ -36,8 +42,19 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
   return (
     <div className="flex flex-col items-center min-h-screen">
       <header className="w-full max-w-2xl">
-        <div className="flex items-center justify-center py-3" style={{ borderBottom: '1px solid #4c4347' }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #4c4347' }}>
+          <div className="w-16" />
           <h1 className="text-xl font-bold tracking-[0.25em]">TERMO</h1>
+          <div className="w-16 text-right">
+            {timeLeft >= 0 && (
+              <span
+                className="font-bold tabular-nums text-sm"
+                style={{ color: timeLeft <= 30 ? 'var(--color-place)' : 'var(--color-text)' }}
+              >
+                {formatTime(timeLeft)}
+              </span>
+            )}
+          </div>
         </div>
         <ScoreHeader
           round={currentRound}

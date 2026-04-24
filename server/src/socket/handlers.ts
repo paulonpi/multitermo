@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io'
 import { Redis } from 'ioredis'
-import { evaluateGuess, normalize } from '../game/logic'
+import { evaluateGuess, normalize, countCorrectTiles } from '../game/logic'
 import { isValidGuess } from '../game/words'
 import {
   createRoom, joinRoom, getRoom, saveRoom,
@@ -10,7 +10,46 @@ import {
 import { Room } from '../types'
 
 const MAX_ATTEMPTS = 6
+const ROUND_DURATION_MS = 5 * 60 * 1000  // 5 minutes
 const NEXT_ROUND_DELAY_MS = 4000
+
+// In-memory timers keyed by room code
+const roomTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function clearRoomTimer(code: string) {
+  const t = roomTimers.get(code)
+  if (t) { clearTimeout(t); roomTimers.delete(code) }
+}
+
+function emitRoundStart(io: Server, room: Room) {
+  const roundEndTime = Date.now() + ROUND_DURATION_MS
+  io.to(room.code).emit('round_start', {
+    round: room.currentRound,
+    totalRounds: room.totalRounds,
+    roundEndTime,
+  })
+  return roundEndTime
+}
+
+function scheduleRoundTimeout(io: Server, redis: Redis, room: Room, roundEndTime: number) {
+  clearRoomTimer(room.code)
+  const delay = roundEndTime - Date.now()
+  const t = setTimeout(async () => {
+    try {
+      const fresh = await getRoom(redis, room.code)
+      if (!fresh || fresh.status !== 'playing' || fresh.currentRound !== room.currentRound) return
+      // Mark any unfinished players as timed-out (done, not solved)
+      for (const rs of fresh.roundStates) {
+        if (!rs.done) { rs.done = true; rs.solved = false }
+      }
+      await saveRoom(redis, fresh)
+      await resolveRound(io, redis, fresh, true)
+    } catch (err) {
+      console.error('round timeout error:', err)
+    }
+  }, delay)
+  roomTimers.set(room.code, t)
+}
 
 export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
   socket.on('create_room', async (data: { playerName: string }) => {
@@ -45,16 +84,13 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       await setSocketRoom(redis, socket.id, room.code)
       socket.join(room.code)
 
-      // Inform both players the match is starting
       io.to(room.code).emit('game_start', {
         players: room.players.map(p => ({ name: p.name, score: p.score })),
       })
 
       setTimeout(() => {
-        io.to(room.code).emit('round_start', {
-          round: room.currentRound,
-          totalRounds: room.totalRounds,
-        })
+        const roundEndTime = emitRoundStart(io, room)
+        scheduleRoundTimeout(io, redis, room, roundEndTime)
       }, 1000)
     } catch (err) {
       console.error('join_room error:', err)
@@ -102,7 +138,6 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
 
       socket.emit('guess_result', { valid: true, guess, result, attempt, solved, done: roundState.done })
 
-      // Notify opponent of progress (tile colors only, no letters)
       const opponentIdx = 1 - playerIdx
       if (room.players[opponentIdx]) {
         io.to(room.players[opponentIdx].socketId).emit('opponent_progress', {
@@ -113,9 +148,8 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
         })
       }
 
-      const allDone = room.roundStates.every(rs => rs.done)
-      if (allDone) {
-        await resolveRound(io, redis, room)
+      if (room.roundStates.every(rs => rs.done)) {
+        await resolveRound(io, redis, room, false)
       }
     } catch (err) {
       console.error('submit_guess error:', err)
@@ -130,6 +164,8 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
 
       if (!room || room.status === 'finished') return
 
+      clearRoomTimer(room.code)
+
       const opponentIdx = 1 - getPlayerIndex(room, socket.id)
       if (room.players[opponentIdx]) {
         io.to(room.players[opponentIdx].socketId).emit('opponent_disconnected')
@@ -142,11 +178,12 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
   })
 }
 
-async function resolveRound(io: Server, redis: Redis, room: Room): Promise<void> {
-  // Atomic guard: only one resolveRound runs per round
+async function resolveRound(io: Server, redis: Redis, room: Room, timedOut: boolean): Promise<void> {
   const lockKey = `lock:${room.code}:${room.currentRound}`
   const acquired = await redis.set(lockKey, '1', 'EX', 30, 'NX')
   if (!acquired) return
+
+  clearRoomTimer(room.code)
 
   const [s0, s1] = room.roundStates
   const [p0, p1] = room.players
@@ -157,7 +194,12 @@ async function resolveRound(io: Server, redis: Redis, room: Room): Promise<void>
   else if (s0.solved && s1.solved) {
     if (s0.guesses.length < s1.guesses.length) winnerIdx = 0
     else if (s1.guesses.length < s0.guesses.length) winnerIdx = 1
-    // else draw: no point
+  } else if (timedOut && s0.results.length + s1.results.length > 0) {
+    // Neither solved — most green tiles wins
+    const c0 = countCorrectTiles(s0.results)
+    const c1 = countCorrectTiles(s1.results)
+    if (c0 > c1) winnerIdx = 0
+    else if (c1 > c0) winnerIdx = 1
   }
 
   if (winnerIdx !== null) room.players[winnerIdx].score++
@@ -171,6 +213,7 @@ async function resolveRound(io: Server, redis: Redis, room: Room): Promise<void>
       [p0.name]: { guesses: s0.guesses, results: s0.results, solved: s0.solved },
       [p1.name]: { guesses: s1.guesses, results: s1.results, solved: s1.solved },
     },
+    timedOut,
   })
 
   if (room.currentRound >= room.totalRounds) {
@@ -192,10 +235,8 @@ async function resolveRound(io: Server, redis: Redis, room: Room): Promise<void>
     await saveRoom(redis, room)
 
     setTimeout(() => {
-      io.to(room.code).emit('round_start', {
-        round: room.currentRound,
-        totalRounds: room.totalRounds,
-      })
+      const roundEndTime = emitRoundStart(io, room)
+      scheduleRoundTimeout(io, redis, room, roundEndTime)
     }, NEXT_ROUND_DELAY_MS)
   }
 }

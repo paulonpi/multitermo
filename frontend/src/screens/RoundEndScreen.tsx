@@ -18,6 +18,8 @@ export function RoundEndScreen({ data, myName, players }: RoundEndScreenProps) {
     winnerName === null   ? 'Empate!' :
     `${winnerName} venceu.`
 
+  const subtitle = data.timedOut ? 'Tempo esgotado!' : `Rodada ${round}`
+
   const resultColor =
     winnerName === myName ? 'var(--color-right)' :
     winnerName === null   ? 'var(--color-place)' :
@@ -26,7 +28,7 @@ export function RoundEndScreen({ data, myName, players }: RoundEndScreenProps) {
   return (
     <div className="flex flex-col items-center min-h-screen gap-6 p-4 pt-10 overflow-y-auto">
       <div className="text-center">
-        <p className="text-xs uppercase tracking-widest mb-1" style={{ color: '#8a7880' }}>Rodada {round}</p>
+        <p className="text-xs uppercase tracking-widest mb-1" style={{ color: '#8a7880' }}>{subtitle}</p>
         <p className="text-xl font-bold" style={{ color: resultColor }}>{resultMessage}</p>
       </div>
 
