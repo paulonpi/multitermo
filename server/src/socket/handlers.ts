@@ -148,7 +148,7 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
         })
       }
 
-      if (room.roundStates.every(rs => rs.done)) {
+      if (solved || room.roundStates.every(rs => rs.done)) {
         await resolveRound(io, redis, room, false)
       }
     } catch (err) {
