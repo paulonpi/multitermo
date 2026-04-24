@@ -1,15 +1,18 @@
-{$DOMAIN} {
+# Adicionar este bloco ao Caddyfile do PyCatalog em /opt/pycatalog/Caddyfile
+# e redeployar o PyCatalog para aplicar.
+
+{$TERMO_DOMAIN} {
     # WebSocket (socket.io) → game server
     handle /socket.io/* {
-        reverse_proxy server:3001
+        reverse_proxy termo-server:3001
     }
 
-    # Everything else → React SPA
+    # React SPA estático
     handle {
-        reverse_proxy frontend:80
+        reverse_proxy termo-frontend:80
     }
 }
 
-www.{$DOMAIN} {
-    redir https://{$DOMAIN}{uri} permanent
+www.{$TERMO_DOMAIN} {
+    redir https://{$TERMO_DOMAIN}{uri} permanent
 }
