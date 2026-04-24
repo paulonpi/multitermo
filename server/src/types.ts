@@ -22,5 +22,6 @@ export interface Room {
   currentRound: number
   totalRounds: number
   currentWord: string
+  currentWordDisplay: string
   roundStates: PlayerRoundState[]
 }

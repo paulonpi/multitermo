@@ -11,8 +11,14 @@ function loadArray(file: string): string[] {
   return JSON.parse(readFileSync(path, 'utf-8'))
 }
 
+function loadMap(file: string): Record<string, string> {
+  const path = join(wordsDir, file)
+  return existsSync(path) ? JSON.parse(readFileSync(path, 'utf-8')) : {}
+}
+
 let _valid: Set<string> | null = null
 let _answers: string[] | null = null
+let _display: Record<string, string> | null = null
 
 export function getValidWords(): Set<string> {
   if (!_valid) _valid = new Set(loadArray('valid.json'))
@@ -24,6 +30,11 @@ export function getAnswerPool(): string[] {
   return _answers
 }
 
+export function getDisplayMap(): Record<string, string> {
+  if (!_display) _display = loadMap('display.json')
+  return _display
+}
+
 export function isValidGuess(word: string): boolean {
   return getValidWords().has(word)
 }
@@ -31,4 +42,8 @@ export function isValidGuess(word: string): boolean {
 export function pickRandomWord(): string {
   const pool = getAnswerPool()
   return pool[Math.floor(Math.random() * pool.length)]
+}
+
+export function getDisplayWord(normalized: string): string {
+  return getDisplayMap()[normalized] ?? normalized
 }

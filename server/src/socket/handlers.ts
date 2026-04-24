@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io'
 import { Redis } from 'ioredis'
 import { evaluateGuess, normalize, countCorrectTiles } from '../game/logic'
-import { isValidGuess } from '../game/words'
+import { isValidGuess, getDisplayWord } from '../game/words'
 import {
   createRoom, joinRoom, getRoom, saveRoom,
   getRoomBySocketId, setSocketRoom, removeSocketRoom,
@@ -136,7 +136,7 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
 
       await saveRoom(redis, room)
 
-      socket.emit('guess_result', { valid: true, guess, result, attempt, solved, done: roundState.done })
+      socket.emit('guess_result', { valid: true, guess: getDisplayWord(guess), result, attempt, solved, done: roundState.done })
 
       const opponentIdx = 1 - playerIdx
       if (room.players[opponentIdx]) {
@@ -206,12 +206,12 @@ async function resolveRound(io: Server, redis: Redis, room: Room, timedOut: bool
 
   io.to(room.code).emit('round_end', {
     round: room.currentRound,
-    word: room.currentWord,
+    word: room.currentWordDisplay || room.currentWord,
     winnerName: winnerIdx !== null ? room.players[winnerIdx].name : null,
     scores: { [p0.name]: room.players[0].score, [p1.name]: room.players[1].score },
     playerResults: {
-      [p0.name]: { guesses: s0.guesses, results: s0.results, solved: s0.solved },
-      [p1.name]: { guesses: s1.guesses, results: s1.results, solved: s1.solved },
+      [p0.name]: { guesses: s0.guesses.map(getDisplayWord), results: s0.results, solved: s0.solved },
+      [p1.name]: { guesses: s1.guesses.map(getDisplayWord), results: s1.results, solved: s1.solved },
     },
     timedOut,
   })

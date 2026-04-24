@@ -1,6 +1,6 @@
 import { Redis } from 'ioredis'
 import { Room, Player, PlayerRoundState } from '../types'
-import { pickRandomWord } from './words'
+import { pickRandomWord, getDisplayWord } from './words'
 
 const ROOM_TTL = 3600
 const TOTAL_ROUNDS = 5
@@ -30,6 +30,7 @@ export async function createRoom(redis: Redis, socketId: string, playerName: str
     currentRound: 1,
     totalRounds: TOTAL_ROUNDS,
     currentWord: '',
+    currentWordDisplay: '',
     roundStates: [emptyRoundState()],
   }
   await saveRoom(redis, room)
@@ -49,6 +50,7 @@ export async function joinRoom(
   room.roundStates.push(emptyRoundState())
   room.status = 'playing'
   room.currentWord = pickRandomWord()
+  room.currentWordDisplay = getDisplayWord(room.currentWord)
 
   await saveRoom(redis, room)
   return room
@@ -83,5 +85,6 @@ export function getPlayerIndex(room: Room, socketId: string): number {
 export function advanceRound(room: Room): void {
   room.currentRound++
   room.currentWord = pickRandomWord()
+  room.currentWordDisplay = getDisplayWord(room.currentWord)
   room.roundStates = room.players.map(() => emptyRoundState())
 }

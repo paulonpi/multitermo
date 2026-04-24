@@ -1,7 +1,7 @@
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 
-const ICF_ANSWER_THRESHOLD = 13  // lower score = more common; ~1900 words below this
+const ICF_ANSWER_THRESHOLD = 13
 
 function normalize(word: string): string {
   return word
@@ -31,8 +31,7 @@ async function main() {
     fetchText('https://raw.githubusercontent.com/fserb/pt-br/master/icf'),
   ])
 
-  // Build ICF score map: normalized word → lowest score seen
-  // (multiple accented variants can normalize to the same word)
+  // Build ICF score map: normalized → lowest score
   const icfScores = new Map<string, number>()
   for (const line of icfText.split('\n')) {
     const comma = line.lastIndexOf(',')
@@ -44,15 +43,22 @@ async function main() {
     if (prev === undefined || score < prev) icfScores.set(word, score)
   }
 
-  // Valid guesses: all 5-letter a-z words from lexico
-  const allWords = lexicoText
-    .split('\n')
-    .map(l => normalize(l))
-    .filter(w => w.length === 5 && /^[a-z]+$/.test(w))
+  // Build display map: normalized → original with accents
+  // Prefers the accented form over the plain form
+  const displayMap: Record<string, string> = {}
+  for (const line of lexicoText.split('\n')) {
+    const original = line.trim().toLowerCase()
+    if (!original) continue
+    const norm = normalize(original)
+    if (norm.length !== 5 || !/^[a-z]+$/.test(norm)) continue
+    if (!displayMap[norm]) {
+      displayMap[norm] = original                  // first form found
+    } else if (displayMap[norm] === norm && original !== norm) {
+      displayMap[norm] = original                  // upgrade to accented
+    }
+  }
 
-  const valid   = [...new Set(allWords)].sort()
-
-  // Answer pool: only words with ICF score below threshold
+  const valid   = Object.keys(displayMap).sort()
   const answers = valid.filter(w => {
     const score = icfScores.get(w)
     return score !== undefined && score < ICF_ANSWER_THRESHOLD
@@ -61,6 +67,7 @@ async function main() {
   mkdirSync(wordsDir, { recursive: true })
   writeFileSync(join(wordsDir, 'valid.json'),   JSON.stringify(valid))
   writeFileSync(join(wordsDir, 'answers.json'), JSON.stringify(answers))
+  writeFileSync(join(wordsDir, 'display.json'), JSON.stringify(displayMap))
 
   console.log(`Done: ${answers.length} answer words, ${valid.length} valid guesses.`)
 }

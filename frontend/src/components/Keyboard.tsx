@@ -13,7 +13,7 @@ function computeLetterStates(guesses: string[], results: TileState[][]): Record<
   const states: Record<string, TileState> = {}
   for (let i = 0; i < guesses.length; i++) {
     for (let j = 0; j < guesses[i].length; j++) {
-      const letter = guesses[i][j].toUpperCase()
+      const letter = guesses[i][j].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
       const s = results[i]?.[j]
       if (s && (!states[letter] || PRIORITY[s] > PRIORITY[states[letter]])) {
         states[letter] = s
