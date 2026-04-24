@@ -31,20 +31,8 @@ async function main() {
     fetchText('https://raw.githubusercontent.com/fserb/pt-br/master/icf'),
   ])
 
-  // Build ICF score map: normalized → lowest score
-  const icfScores = new Map<string, number>()
-  for (const line of icfText.split('\n')) {
-    const comma = line.lastIndexOf(',')
-    if (comma === -1) continue
-    const word  = normalize(line.slice(0, comma))
-    const score = parseFloat(line.slice(comma + 1))
-    if (!word || isNaN(score)) continue
-    const prev = icfScores.get(word)
-    if (prev === undefined || score < prev) icfScores.set(word, score)
-  }
-
-  // Build display map: normalized → original with accents
-  // Prefers the accented form over the plain form
+  // Build display map from lexico: normalized → original with accents
+  // Prefers the accented form if the same normalized word appears twice
   const displayMap: Record<string, string> = {}
   for (const line of lexicoText.split('\n')) {
     const original = line.trim().toLowerCase()
@@ -52,17 +40,31 @@ async function main() {
     const norm = normalize(original)
     if (norm.length !== 5 || !/^[a-z]+$/.test(norm)) continue
     if (!displayMap[norm]) {
-      displayMap[norm] = original                  // first form found
+      displayMap[norm] = original
     } else if (displayMap[norm] === norm && original !== norm) {
-      displayMap[norm] = original                  // upgrade to accented
+      displayMap[norm] = original  // upgrade to accented form
     }
   }
 
-  const valid   = Object.keys(displayMap).sort()
-  const answers = valid.filter(w => {
-    const score = icfScores.get(w)
-    return score !== undefined && score < ICF_ANSWER_THRESHOLD
-  })
+  // Build valid + answer pools from ICF (includes all inflected forms and conjugations)
+  const icfWords = new Map<string, number>()  // normalized → lowest score
+  for (const line of icfText.split('\n')) {
+    const comma = line.lastIndexOf(',')
+    if (comma === -1) continue
+    const word  = normalize(line.slice(0, comma))
+    const score = parseFloat(line.slice(comma + 1))
+    if (!word || isNaN(score) || word.length !== 5 || !/^[a-z]+$/.test(word)) continue
+    const prev = icfWords.get(word)
+    if (prev === undefined || score < prev) icfWords.set(word, score)
+  }
+
+  const valid   = [...icfWords.keys()].sort()
+  const answers = valid.filter(w => (icfWords.get(w) ?? Infinity) < ICF_ANSWER_THRESHOLD)
+
+  // Fill display map with identity for ICF words not in lexico
+  for (const w of valid) {
+    if (!displayMap[w]) displayMap[w] = w
+  }
 
   mkdirSync(wordsDir, { recursive: true })
   writeFileSync(join(wordsDir, 'valid.json'),   JSON.stringify(valid))
