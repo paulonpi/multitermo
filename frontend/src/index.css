@@ -1,0 +1,224 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS custom properties (term.ooo palette) ────────────────────────────── */
+:root {
+  --color-bg:           #6e5c62;
+  --color-tile:         #615458;
+  --color-tile-border:  #4c4347;
+  --color-right:        #3aa394;
+  --color-place:        #d3ad69;
+  --color-wrong:        #312a2c;
+  --color-key:          #4c4347;
+  --color-key-wrong:    #594b4f;
+  --color-key-wrong-fg: #6e5c62;
+  --color-text:         #fafaff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Mitr', sans-serif;
+  font-weight: 600;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ── Tile ─────────────────────────────────────────────────────────────────── */
+.tile {
+  background-color: var(--color-tile);
+  border: 2px solid var(--color-tile-border);
+  border-radius: 10%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Mitr', sans-serif;
+  font-weight: 600;
+  color: var(--color-text);
+  text-transform: uppercase;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.tile-normal { width: 3.5rem; height: 3.5rem; font-size: 1.5rem; line-height: 1; }
+.tile-small  { width: 2rem;   height: 2rem;   font-size: 0.7rem; line-height: 1; }
+
+/* cursor indicator — thicker white bottom border (user request) */
+.tile-cursor {
+  border-bottom: 4px solid #fafaff !important;
+}
+
+/* typed letter: pop animation */
+.tile-input {
+  animation: type 0.15s ease-out;
+}
+
+/* submitted states — set --color and trigger flip */
+.tile-right { --color: var(--color-right); animation: 0.45s linear flip forwards; }
+.tile-place { --color: var(--color-place); animation: 0.45s linear flip forwards; }
+.tile-wrong { --color: var(--color-wrong); animation: 0.45s linear flip forwards; }
+
+/* ── Row shake ────────────────────────────────────────────────────────────── */
+.row-shake { animation: 0.75s ease-in-out rownope; }
+
+/* ── Keyboard keys ────────────────────────────────────────────────────────── */
+.kbd-key {
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-key);
+  border: none;
+  border-radius: 8%;
+  color: var(--color-text);
+  font-family: 'Mitr', sans-serif;
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.4s ease-in-out, color 0.4s ease-in-out;
+  touch-action: manipulation;
+  outline: none;
+}
+
+.kbd-key:active { opacity: 0.7; }
+.kbd-key-letter { width: 2.25rem; }
+.kbd-key-wide   { padding: 0 0.5rem; min-width: 3.5rem; font-size: 0.75rem; }
+
+.kbd-key.kbd-right { background-color: var(--color-right) !important; }
+.kbd-key.kbd-place { background-color: var(--color-place); }
+.kbd-key.kbd-wrong { background-color: var(--color-key-wrong); color: var(--color-key-wrong-fg); }
+
+/* ── Animations (extracted from term.ooo source) ─────────────────────────── */
+@keyframes rownope {
+  10%  { transform: translateX(-14px); }
+  20%  { transform: translateX(14px);  }
+  30%  { transform: translateX(-8px);  }
+  40%  { transform: translateX(8px);   }
+  50%  { transform: translateX(-4px);  }
+  60%  { transform: translateX(4px);   }
+  70%  { transform: translateX(-2px);  }
+  80%  { transform: translateX(2px);   }
+  90%  { transform: translateX(-1px);  }
+  100% { transform: translateX(1px);   }
+}
+
+@keyframes flip {
+  0% {
+    background-color: transparent;
+    border: 2px solid var(--color-tile-border);
+    transform: perspective(200px) rotateY(0deg);
+  }
+  49.99% {
+    background-color: transparent;
+    border: 2px solid var(--color-tile-border);
+    transform: perspective(200px) rotateY(90deg);
+  }
+  50% {
+    background-color: var(--color);
+    border: none;
+    transform: perspective(200px) rotateY(-90deg);
+  }
+  100% {
+    background-color: var(--color);
+    border: none;
+    transform: perspective(200px) rotateY(0deg);
+  }
+}
+
+@keyframes type {
+  0%      { transform: perspective(200px) translateZ(0);    color: transparent; }
+  24.99%  { color: transparent; }
+  25%     { transform: perspective(200px) translateZ(30px); color: var(--color-text); }
+  100%    { transform: perspective(200px) translateZ(0);    color: var(--color-text); }
+}
+
+@keyframes happy {
+  10%  { transform: translateY(-16%); }
+  20%  { transform: translateY(-29%); }
+  30%  { transform: translateY(-40%); }
+  40%  { transform: translateY(-47%); }
+  50%  { transform: translateY(-55%); }
+  60%  { transform: translateY(-47%); }
+  70%  { transform: translateY(-40%); }
+  80%  { transform: translateY(-29%); }
+  90%  { transform: translateY(-16%); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes fade-down {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  top: 5rem;
+  left: 50%;
+  z-index: 50;
+  pointer-events: none;
+  background-color: var(--color-text);
+  color: var(--color-bg);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  animation: fade-down 0.2s ease-out;
+}
+
+/* ── Shared UI primitives ─────────────────────────────────────────────────── */
+.btn-primary {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background-color: var(--color-right);
+  color: var(--color-text);
+  font-family: 'Mitr', sans-serif;
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-outline {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: 'Mitr', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 2px solid var(--color-key);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-outline:hover { border-color: var(--color-text); }
+
+.game-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  background-color: var(--color-tile);
+  border: 2px solid var(--color-tile-border);
+  color: var(--color-text);
+  font-family: 'Mitr', sans-serif;
+  font-weight: 500;
+  font-size: 1rem;
+}
+.game-input::placeholder { color: #8a7880; }
+.game-input:focus { outline: none; border-color: #8a7880; }
