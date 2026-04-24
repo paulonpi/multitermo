@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io'
 import { Redis } from 'ioredis'
-import { evaluateGuess, normalize, countCorrectTiles } from '../game/logic'
+import { evaluateGuess, normalize, bestAttemptScore } from '../game/logic'
 import { isValidGuess, getDisplayWord } from '../game/words'
 import {
   createRoom, joinRoom, getRoom, saveRoom,
@@ -192,14 +192,15 @@ async function resolveRound(io: Server, redis: Redis, room: Room, timedOut: bool
   if (s0.solved && !s1.solved) winnerIdx = 0
   else if (!s0.solved && s1.solved) winnerIdx = 1
   else if (s0.solved && s1.solved) {
+    // Both solved — fewest guesses wins
     if (s0.guesses.length < s1.guesses.length) winnerIdx = 0
     else if (s1.guesses.length < s0.guesses.length) winnerIdx = 1
-  } else if (timedOut && s0.results.length + s1.results.length > 0) {
-    // Neither solved — most green tiles wins
-    const c0 = countCorrectTiles(s0.results)
-    const c1 = countCorrectTiles(s1.results)
-    if (c0 > c1) winnerIdx = 0
-    else if (c1 > c0) winnerIdx = 1
+  } else if (s0.results.length + s1.results.length > 0) {
+    // Neither solved — best single attempt wins (most greens, tie-break yellows)
+    const [g0, y0] = bestAttemptScore(s0.results)
+    const [g1, y1] = bestAttemptScore(s1.results)
+    if (g0 > g1 || (g0 === g1 && y0 > y1)) winnerIdx = 0
+    else if (g1 > g0 || (g1 === g0 && y1 > y0)) winnerIdx = 1
   }
 
   if (winnerIdx !== null) room.players[winnerIdx].score++

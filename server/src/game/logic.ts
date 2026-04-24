@@ -27,8 +27,17 @@ export function evaluateGuess(guess: string, answer: string): TileState[] {
   return result
 }
 
-export function countCorrectTiles(results: TileState[][]): number {
-  return results.reduce((sum, row) => sum + row.filter(t => t === 'correct').length, 0)
+// Returns [maxGreens, maxYellows] of the best single attempt
+export function bestAttemptScore(results: TileState[][]): [number, number] {
+  let maxGreens = 0, maxYellows = 0
+  for (const row of results) {
+    const greens  = row.filter(t => t === 'correct').length
+    const yellows = row.filter(t => t === 'present').length
+    if (greens > maxGreens || (greens === maxGreens && yellows > maxYellows)) {
+      maxGreens = greens; maxYellows = yellows
+    }
+  }
+  return [maxGreens, maxYellows]
 }
 
 export function normalize(word: string): string {
