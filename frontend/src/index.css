@@ -79,6 +79,8 @@ body {
   border-bottom: 4px solid #fafaff !important;
 }
 
+.tile-tappable { touch-action: manipulation; cursor: pointer; }
+
 /* typed letter: pop animation */
 .tile-input {
   animation: type 0.15s ease-out;

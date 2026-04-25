@@ -7,9 +7,10 @@ interface BoardProps {
   currentLetters: string[]
   cursorPos: number
   shakeRow: boolean
+  onTileClick?: (col: number) => void
 }
 
-export function Board({ guesses, results, currentLetters, cursorPos, shakeRow }: BoardProps) {
+export function Board({ guesses, results, currentLetters, cursorPos, shakeRow, onTileClick }: BoardProps) {
   return (
     <div className="flex flex-col gap-1">
       {Array.from({ length: 6 }, (_, row) => {
@@ -44,6 +45,7 @@ export function Board({ guesses, results, currentLetters, cursorPos, shakeRow }:
                   animateFlip={isSubmitted}
                   flipDelay={col * 275}
                   isCursor={isCurrent && col === cursorPos}
+                  onClick={isCurrent && onTileClick ? () => onTileClick(col) : undefined}
                 />
               )
             })}

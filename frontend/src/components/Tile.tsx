@@ -7,6 +7,7 @@ interface TileProps {
   animateFlip?: boolean
   flipDelay?: number
   isCursor?: boolean
+  onClick?: () => void
 }
 
 const STATE_CLASS: Record<TileStatus, string> = {
@@ -17,19 +18,20 @@ const STATE_CLASS: Record<TileStatus, string> = {
   absent:  'tile-wrong',
 }
 
-export function Tile({ letter = '', state, size = 'normal', animateFlip, flipDelay = 0, isCursor }: TileProps) {
+export function Tile({ letter = '', state, size = 'normal', animateFlip, flipDelay = 0, isCursor, onClick }: TileProps) {
   const cls = [
     'tile',
     size === 'normal' ? 'tile-normal' : 'tile-small',
     STATE_CLASS[state],
     isCursor ? 'tile-cursor' : '',
+    onClick ? 'tile-tappable' : '',
   ].filter(Boolean).join(' ')
 
   const style: React.CSSProperties = {}
   if (animateFlip && flipDelay > 0) style.animationDelay = `${flipDelay}ms`
 
   return (
-    <div className={cls} style={style}>
+    <div className={cls} style={style} onPointerDown={onClick}>
       {letter}
     </div>
   )

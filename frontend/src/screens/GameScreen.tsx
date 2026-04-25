@@ -77,6 +77,7 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
             currentLetters={currentLetters}
             cursorPos={cursorPos}
             shakeRow={shakeRow}
+            onTileClick={col => onKeyPress(`CURSOR:${col}`)}
           />
         </div>
 

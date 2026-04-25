@@ -203,6 +203,12 @@ export function useGame() {
       return
     }
 
+    if (key.startsWith('CURSOR:')) {
+      const col = parseInt(key.slice(7))
+      if (col >= 0 && col <= 4) setState(prev => ({ ...prev, cursorPos: col }))
+      return
+    }
+
     if (key === 'BACKSPACE') {
       setState(prev => {
         const letters = [...prev.currentLetters]
