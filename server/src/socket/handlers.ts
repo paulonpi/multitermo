@@ -58,6 +58,10 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
 
       const maxPlayers = Math.min(4, Math.max(2, Math.floor(data?.maxPlayers ?? 2)))
 
+      // Leave any previous room so stale socket.io room membership doesn't linger
+      const prevCode = await redis.get(`socket_room:${socket.id}`)
+      if (prevCode) socket.leave(prevCode)
+
       const room = await createRoom(redis, socket.id, playerName, maxPlayers)
       await setSocketRoom(redis, socket.id, room.code)
       socket.join(room.code)
@@ -88,6 +92,10 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
         socket.emit('error', { message: 'Sala não encontrada ou já está cheia.' })
         return
       }
+
+      // Leave any previous room
+      const prevCode = await redis.get(`socket_room:${socket.id}`)
+      if (prevCode && prevCode !== room.code) socket.leave(prevCode)
 
       await setSocketRoom(redis, socket.id, room.code)
       socket.join(room.code)

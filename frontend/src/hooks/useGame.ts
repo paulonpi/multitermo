@@ -62,6 +62,7 @@ export function useGame() {
   const [state, setState] = useState<GameState>(INITIAL)
   const stateRef = useRef(state)
   const roundEndTimeRef = useRef<number>(0)
+  const hasConnectedRef = useRef(false)
 
   useEffect(() => {
     stateRef.current = state
@@ -79,6 +80,15 @@ export function useGame() {
 
   useEffect(() => {
     const socket = getSocket()
+
+    socket.on('connect', () => {
+      if (hasConnectedRef.current) {
+        // Reconnect after network dropout — room is gone on the server, reset to home
+        setState(s => s.screen !== 'home' ? { ...INITIAL, toast: 'Conexão perdida. Tente novamente.' } : s)
+        setTimeout(() => setState(s => ({ ...s, toast: null })), 3000)
+      }
+      hasConnectedRef.current = true
+    })
 
     socket.on('room_created', ({ code, maxPlayers }: { code: string; maxPlayers: number }) => {
       setState(s => ({
@@ -205,6 +215,7 @@ export function useGame() {
     })
 
     return () => {
+      socket.off('connect')
       socket.off('room_created')
       socket.off('room_joined')
       socket.off('player_joined')
@@ -289,7 +300,6 @@ export function useGame() {
   }, [])
 
   const playAgain = useCallback(() => {
-    getSocket().disconnect()
     setState(INITIAL)
   }, [])
 
