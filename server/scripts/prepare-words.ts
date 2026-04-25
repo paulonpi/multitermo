@@ -58,8 +58,11 @@ async function main() {
     if (prev === undefined || score < prev) icfWords.set(word, score)
   }
 
+  const FOREIGN_CHARS = /[kwy]/
   const valid   = [...icfWords.keys()].sort()
-  const answers = valid.filter(w => (icfWords.get(w) ?? Infinity) < ICF_ANSWER_THRESHOLD)
+  const answers = valid.filter(w =>
+    (icfWords.get(w) ?? Infinity) < ICF_ANSWER_THRESHOLD && !FOREIGN_CHARS.test(w)
+  )
 
   // Fill display map with identity for ICF words not in lexico
   for (const w of valid) {
