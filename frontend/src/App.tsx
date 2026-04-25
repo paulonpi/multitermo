@@ -6,7 +6,7 @@ import { RoundEndScreen } from './screens/RoundEndScreen'
 import { MatchEndScreen } from './screens/MatchEndScreen'
 
 export default function App() {
-  const { state, createRoom, joinRoom, onKeyPress, playAgain } = useGame()
+  const { state, createRoom, joinRoom, onKeyPress, playAgain, muted, toggleMute } = useGame()
 
   switch (state.screen) {
     case 'home':
@@ -23,7 +23,7 @@ export default function App() {
       )
 
     case 'game':
-      return <GameScreen state={state} onKeyPress={onKeyPress} />
+      return <GameScreen state={state} onKeyPress={onKeyPress} muted={muted} onToggleMute={toggleMute} />
 
     case 'round_end':
       return state.roundEndData ? (

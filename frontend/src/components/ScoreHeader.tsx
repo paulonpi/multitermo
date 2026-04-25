@@ -5,9 +5,11 @@ interface ScoreHeaderProps {
   totalRounds: number
   players: PlayerInfo[]
   myName: string
+  muted: boolean
+  onToggleMute: () => void
 }
 
-export function ScoreHeader({ round, totalRounds, players, myName }: ScoreHeaderProps) {
+export function ScoreHeader({ round, totalRounds, players, myName, muted, onToggleMute }: ScoreHeaderProps) {
   return (
     <div className="flex items-center justify-between w-full px-4 py-2 text-sm" style={{ borderBottom: '1px solid #4c4347' }}>
       <span style={{ color: '#8a7880' }}>
@@ -21,6 +23,13 @@ export function ScoreHeader({ round, totalRounds, players, myName }: ScoreHeader
           </span>
         ))}
       </div>
+      <button
+        onClick={onToggleMute}
+        aria-label={muted ? 'Ativar som' : 'Silenciar'}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, opacity: muted ? 0.45 : 1 }}
+      >
+        {muted ? '🔇' : '🔊'}
+      </button>
     </div>
   )
 }

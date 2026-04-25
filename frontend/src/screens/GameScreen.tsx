@@ -15,9 +15,11 @@ function formatTime(seconds: number): string {
 interface GameScreenProps {
   state: GameState
   onKeyPress: (key: string) => void
+  muted: boolean
+  onToggleMute: () => void
 }
 
-export function GameScreen({ state, onKeyPress }: GameScreenProps) {
+export function GameScreen({ state, onKeyPress, muted, onToggleMute }: GameScreenProps) {
   const {
     players, myName, currentRound, totalRounds,
     guesses, results, currentLetters, cursorPos, shakeRow,
@@ -61,6 +63,8 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
           totalRounds={totalRounds}
           players={players}
           myName={myName}
+          muted={muted}
+          onToggleMute={onToggleMute}
         />
       </header>
 

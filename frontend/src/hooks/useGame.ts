@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getSocket } from '../socket'
+import { useSounds } from '../audio/useSounds'
 import type { TileState, PlayerInfo, RoundEndData, MatchEndData, Screen } from '../types'
 
 export interface OpponentAttempt {
@@ -63,20 +64,30 @@ export function useGame() {
   const stateRef = useRef(state)
   const roundEndTimeRef = useRef<number>(0)
   const hasConnectedRef = useRef(false)
+  const timerSoundedRef = useRef(new Set<number>())
+  const { sounds, muted, toggleMute } = useSounds()
 
   useEffect(() => {
     stateRef.current = state
   }, [state])
 
   // Countdown ticker — runs while on game screen
+  const TIMER_THRESHOLDS = [60, 30, 10, 5, 4, 3, 2, 1]
   useEffect(() => {
     if (state.screen !== 'game') return
     const interval = setInterval(() => {
       const t = Math.max(0, Math.round((roundEndTimeRef.current - Date.now()) / 1000))
       setState(s => s.screen === 'game' ? { ...s, timeLeft: t } : s)
+      for (const threshold of TIMER_THRESHOLDS) {
+        if (t <= threshold && !timerSoundedRef.current.has(threshold)) {
+          timerSoundedRef.current.add(threshold)
+          sounds.onTick(threshold)
+          break
+        }
+      }
     }, 500)
     return () => clearInterval(interval)
-  }, [state.screen, state.currentRound])
+  }, [state.screen, state.currentRound, sounds])
 
   useEffect(() => {
     const socket = getSocket()
@@ -120,6 +131,7 @@ export function useGame() {
 
     socket.on('round_start', ({ round, totalRounds, roundEndTime }: { round: number; totalRounds: number; roundEndTime: number }) => {
       roundEndTimeRef.current = roundEndTime
+      timerSoundedRef.current = new Set()
       setState(s => ({
         ...s,
         screen: 'game',
@@ -147,10 +159,12 @@ export function useGame() {
       message?: string
     }) => {
       if (!data.valid) {
+        sounds.onInvalid()
         setState(s => ({ ...s, shakeRow: true, toast: data.message ?? 'Palavra inválida.' }))
         setTimeout(() => setState(s => ({ ...s, shakeRow: false, toast: null })), 1500)
         return
       }
+      if (data.solved) sounds.onSolve()
       setState(s => ({
         ...s,
         guesses: [...s.guesses, data.guess!],
@@ -164,7 +178,8 @@ export function useGame() {
       }
     })
 
-    socket.on('opponent_progress', (data: { playerName: string; result: TileState[]; done: boolean }) => {
+    socket.on('opponent_progress', (data: { playerName: string; result: TileState[]; done: boolean; solved?: boolean }) => {
+      if (data.done && data.solved) sounds.onOpponentSolve()
       setState(s => ({
         ...s,
         opponentAttempts: {
@@ -179,6 +194,7 @@ export function useGame() {
     })
 
     socket.on('round_end', (data: RoundEndData) => {
+      sounds.onRoundEnd()
       setState(s => ({
         ...s,
         screen: 'round_end',
@@ -188,6 +204,9 @@ export function useGame() {
     })
 
     socket.on('match_end', (data: MatchEndData) => {
+      const myName = stateRef.current.myName
+      if (data.winnerName === myName) sounds.onWin()
+      else sounds.onLose()
       setState(s => ({ ...s, screen: 'match_end', matchEndData: data }))
     })
 
@@ -280,6 +299,7 @@ export function useGame() {
     }
 
     if (key === 'ENTER') {
+      sounds.onSubmit()
       if (s.currentLetters.every(l => l !== '')) {
         getSocket().emit('submit_guess', { guess: s.currentLetters.join('') })
       }
@@ -303,5 +323,5 @@ export function useGame() {
     setState(INITIAL)
   }, [])
 
-  return { state, createRoom, joinRoom, onKeyPress, playAgain }
+  return { state, createRoom, joinRoom, onKeyPress, playAgain, muted, toggleMute }
 }
