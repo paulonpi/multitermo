@@ -76,6 +76,13 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       if (!playerName) { socket.emit('error', { message: 'Nome inválido.' }); return }
       if (!code) { socket.emit('error', { message: 'Código inválido.' }); return }
 
+      // Prevent duplicate names in the same room
+      const existing = await getRoom(redis, code.toUpperCase())
+      if (existing && existing.players.some(p => p.name.toLowerCase() === playerName.toLowerCase())) {
+        socket.emit('error', { message: 'Já existe um jogador com esse nome nesta sala.' })
+        return
+      }
+
       const room = await joinRoom(redis, code, socket.id, playerName)
       if (!room) {
         socket.emit('error', { message: 'Sala não encontrada ou já está cheia.' })
@@ -186,13 +193,56 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       clearRoomTimer(room.code)
 
       const playerIdx = getPlayerIndex(room, socket.id)
-      for (let i = 0; i < room.players.length; i++) {
-        if (i !== playerIdx) {
-          io.to(room.players[i].socketId).emit('opponent_disconnected')
-        }
+      if (playerIdx === -1) return
+
+      const disconnectedName = room.players[playerIdx].name
+      const wasPlaying = room.status === 'playing'
+
+      room.players.splice(playerIdx, 1)
+      room.roundStates.splice(playerIdx, 1)
+
+      if (room.players.length === 0) {
+        room.status = 'finished'
+        await saveRoom(redis, room)
+        return
       }
-      room.status = 'finished'
-      await saveRoom(redis, room)
+
+      const remainingPlayers = room.players.map(p => ({ name: p.name, score: p.score }))
+
+      if (room.players.length === 1) {
+        room.status = 'finished'
+        await saveRoom(redis, room)
+
+        const winner = room.players[0]
+        // Notify last player, then end match
+        io.to(winner.socketId).emit('player_left', {
+          playerName: disconnectedName,
+          players: remainingPlayers,
+        })
+        if (wasPlaying) {
+          setTimeout(() => {
+            io.to(winner.socketId).emit('match_end', {
+              winnerName: winner.name,
+              scores: { [winner.name]: winner.score },
+            })
+          }, 2000)
+        }
+        return
+      }
+
+      // 2+ players remain — continue game
+      for (const p of room.players) {
+        io.to(p.socketId).emit('player_left', {
+          playerName: disconnectedName,
+          players: remainingPlayers,
+        })
+      }
+
+      if (wasPlaying && room.roundStates.every(rs => rs.done)) {
+        await resolveRound(io, redis, room, false)
+      } else {
+        await saveRoom(redis, room)
+      }
     } catch (err) {
       console.error('disconnect error:', err)
     }

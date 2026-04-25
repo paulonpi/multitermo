@@ -181,6 +181,16 @@ export function useGame() {
       setState(s => ({ ...s, screen: 'match_end', matchEndData: data }))
     })
 
+    socket.on('player_left', ({ playerName, players }: { playerName: string; players: PlayerInfo[] }) => {
+      setState(s => ({
+        ...s,
+        players,
+        waitingPlayers: players,
+        toast: `${playerName} desconectou.`,
+      }))
+      setTimeout(() => setState(s => ({ ...s, toast: null })), 3000)
+    })
+
     socket.on('opponent_disconnected', () => {
       setState(s => ({ ...s, toast: 'Adversário desconectou.' }))
       setTimeout(() => {
@@ -204,6 +214,7 @@ export function useGame() {
       socket.off('opponent_progress')
       socket.off('round_end')
       socket.off('match_end')
+      socket.off('player_left')
       socket.off('opponent_disconnected')
       socket.off('error')
     }
