@@ -28,10 +28,10 @@ export function MatchEndScreen({ data, myName, players, onPlayAgain }: MatchEndS
         <p className="text-3xl font-bold" style={{ color: resultColor }}>{resultMessage}</p>
       </div>
 
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-5 sm:gap-8">
         <div className="flex flex-col items-center gap-1">
           <span
-            className="text-5xl font-bold"
+            className="text-4xl sm:text-5xl font-bold"
             style={{ color: p0?.name === myName ? 'var(--color-text)' : '#8a7880' }}
           >
             {scores[p0?.name ?? ''] ?? 0}
@@ -40,10 +40,10 @@ export function MatchEndScreen({ data, myName, players, onPlayAgain }: MatchEndS
             {p0?.name}
           </span>
         </div>
-        <span className="text-3xl" style={{ color: '#4c4347' }}>×</span>
+        <span className="text-2xl sm:text-3xl" style={{ color: '#4c4347' }}>×</span>
         <div className="flex flex-col items-center gap-1">
           <span
-            className="text-5xl font-bold"
+            className="text-4xl sm:text-5xl font-bold"
             style={{ color: p1?.name === myName ? 'var(--color-text)' : '#8a7880' }}
           >
             {scores[p1?.name ?? ''] ?? 0}

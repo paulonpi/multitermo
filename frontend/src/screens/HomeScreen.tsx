@@ -29,7 +29,7 @@ export function HomeScreen({ onCreateRoom, onJoinRoom }: HomeScreenProps) {
 
       <form
         onSubmit={mode === 'join' ? handleJoin : handleCreate}
-        className="flex flex-col gap-3 w-72"
+        className="flex flex-col gap-3 w-full max-w-xs"
       >
         <input
           type="text"

@@ -21,7 +21,7 @@ export function WaitingScreen({ code, playerName }: WaitingScreenProps) {
       <div className="text-center">
         <p className="text-sm mb-5" style={{ color: '#8a7880' }}>Compartilhe o código com seu adversário</p>
         <div className="flex items-center justify-center gap-4">
-          <span className="text-6xl font-bold tracking-[0.35em]">{code}</span>
+          <span className="text-5xl sm:text-6xl font-bold tracking-[0.35em]">{code}</span>
           <button
             onClick={copyCode}
             className="btn-outline"

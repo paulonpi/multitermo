@@ -14,6 +14,33 @@
   --color-key-wrong:    #594b4f;
   --color-key-wrong-fg: #6e5c62;
   --color-text:         #fafaff;
+
+  --tile-size:      3.5rem;
+  --tile-font:      1.5rem;
+  --tile-sm-size:   2rem;
+  --tile-sm-font:   0.7rem;
+  --kbd-height:     3.5rem;
+  --kbd-letter-w:   2.25rem;
+  --kbd-wide-min:   3.5rem;
+  --kbd-font:       0.9rem;
+  --kbd-wide-font:  0.75rem;
+  --kbd-wide-px:    0.5rem;
+}
+
+/* phones in portrait */
+@media (max-width: 639px) {
+  :root {
+    --tile-size:      2.5rem;
+    --tile-font:      1.05rem;
+    --tile-sm-size:   1.25rem;
+    --tile-sm-font:   0.5rem;
+    --kbd-height:     2.75rem;
+    --kbd-letter-w:   1.75rem;
+    --kbd-wide-min:   2.75rem;
+    --kbd-font:       0.8rem;
+    --kbd-wide-font:  0.6rem;
+    --kbd-wide-px:    0.25rem;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -44,8 +71,8 @@ body {
   flex-shrink: 0;
 }
 
-.tile-normal { width: 3.5rem; height: 3.5rem; font-size: 1.5rem; line-height: 1; }
-.tile-small  { width: 2rem;   height: 2rem;   font-size: 0.7rem; line-height: 1; }
+.tile-normal { width: var(--tile-size);    height: var(--tile-size);    font-size: var(--tile-font);    line-height: 1; }
+.tile-small  { width: var(--tile-sm-size); height: var(--tile-sm-size); font-size: var(--tile-sm-font); line-height: 1; }
 
 /* cursor indicator — thicker white bottom border (user request) */
 .tile-cursor {
@@ -67,7 +94,7 @@ body {
 
 /* ── Keyboard keys ────────────────────────────────────────────────────────── */
 .kbd-key {
-  height: 3.5rem;
+  height: var(--kbd-height);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,7 +104,7 @@ body {
   color: var(--color-text);
   font-family: 'Mitr', sans-serif;
   font-weight: 500;
-  font-size: 0.9rem;
+  font-size: var(--kbd-font);
   text-transform: uppercase;
   cursor: pointer;
   transition: background-color 0.4s ease-in-out, color 0.4s ease-in-out;
@@ -86,8 +113,8 @@ body {
 }
 
 .kbd-key:active { opacity: 0.7; }
-.kbd-key-letter { width: 2.25rem; }
-.kbd-key-wide   { padding: 0 0.5rem; min-width: 3.5rem; font-size: 0.75rem; }
+.kbd-key-letter { width: var(--kbd-letter-w); }
+.kbd-key-wide   { padding: 0 var(--kbd-wide-px); min-width: var(--kbd-wide-min); font-size: var(--kbd-wide-font); }
 
 .kbd-key.kbd-right { background-color: var(--color-right) !important; }
 .kbd-key.kbd-place { background-color: var(--color-place); }

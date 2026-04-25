@@ -66,7 +66,7 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
 
       <Toast message={toast} />
 
-      <main className="flex flex-1 gap-6 md:gap-10 p-4 justify-center items-start mt-4">
+      <main className="flex flex-1 gap-2 sm:gap-6 md:gap-10 p-4 justify-center items-start mt-4">
         <div className="flex flex-col items-center gap-2">
           <span className="text-xs uppercase tracking-widest" style={{ color: '#8a7880' }}>
             {myName} {myDone && '✓'}
@@ -90,7 +90,7 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
         )}
       </main>
 
-      <footer className="w-full max-w-lg px-2 pb-4">
+      <footer className="w-full max-w-lg px-1 sm:px-2 pb-4">
         <Keyboard guesses={guesses} results={results} onKey={onKeyPress} />
       </footer>
     </div>
