@@ -66,10 +66,15 @@ export function useGame() {
   const hasConnectedRef = useRef(false)
   const timerSoundedRef = useRef(new Set<number>())
   const { sounds, muted, toggleMute } = useSounds()
+  const soundsRef = useRef(sounds)
 
   useEffect(() => {
     stateRef.current = state
   }, [state])
+
+  useEffect(() => {
+    soundsRef.current = sounds
+  }, [sounds])
 
   // Countdown ticker — runs while on game screen
   const TIMER_THRESHOLDS = [60, 30, 10, 5, 4, 3, 2, 1]
@@ -159,12 +164,12 @@ export function useGame() {
       message?: string
     }) => {
       if (!data.valid) {
-        sounds.onInvalid()
+        soundsRef.current.onInvalid()
         setState(s => ({ ...s, shakeRow: true, toast: data.message ?? 'Palavra inválida.' }))
         setTimeout(() => setState(s => ({ ...s, shakeRow: false, toast: null })), 1500)
         return
       }
-      if (data.solved) sounds.onSolve()
+      if (data.solved) soundsRef.current.onSolve()
       setState(s => ({
         ...s,
         guesses: [...s.guesses, data.guess!],
@@ -179,7 +184,7 @@ export function useGame() {
     })
 
     socket.on('opponent_progress', (data: { playerName: string; result: TileState[]; done: boolean; solved?: boolean }) => {
-      if (data.done && data.solved) sounds.onOpponentSolve()
+      if (data.done && data.solved) soundsRef.current.onOpponentSolve()
       setState(s => ({
         ...s,
         opponentAttempts: {
@@ -194,7 +199,7 @@ export function useGame() {
     })
 
     socket.on('round_end', (data: RoundEndData) => {
-      sounds.onRoundEnd()
+      soundsRef.current.onRoundEnd()
       setState(s => ({
         ...s,
         screen: 'round_end',
@@ -205,8 +210,8 @@ export function useGame() {
 
     socket.on('match_end', (data: MatchEndData) => {
       const myName = stateRef.current.myName
-      if (data.winnerName === myName) sounds.onWin()
-      else sounds.onLose()
+      if (data.winnerName === myName) soundsRef.current.onWin()
+      else soundsRef.current.onLose()
       setState(s => ({ ...s, screen: 'match_end', matchEndData: data }))
     })
 
@@ -299,7 +304,7 @@ export function useGame() {
     }
 
     if (key === 'ENTER') {
-      sounds.onSubmit()
+      soundsRef.current.onSubmit()
       if (s.currentLetters.every(l => l !== '')) {
         getSocket().emit('submit_guess', { guess: s.currentLetters.join('') })
       }
