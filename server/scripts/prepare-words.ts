@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, existsSync } from 'fs'
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 
 const ICF_ANSWER_THRESHOLD = 13
@@ -56,6 +56,21 @@ async function main() {
     if (!word || isNaN(score) || word.length !== 5 || !/^[a-z]+$/.test(word)) continue
     const prev = icfWords.get(word)
     if (prev === undefined || score < prev) icfWords.set(word, score)
+  }
+
+  // Merge supplement words (manually curated common words missing from ICF)
+  const supplementPath = join(process.cwd(), 'words-supplement.json')
+  if (existsSync(supplementPath)) {
+    const supplementRaw: string[] = JSON.parse(readFileSync(supplementPath, 'utf-8'))
+    for (const entry of supplementRaw) {
+      const norm = normalize(entry)
+      if (norm.length !== 5 || !/^[a-z]+$/.test(norm)) continue
+      if (!icfWords.has(norm)) icfWords.set(norm, 0)  // score 0 = always an answer
+      const original = entry.trim().toLowerCase()
+      if (!displayMap[norm]) displayMap[norm] = original
+      else if (displayMap[norm] === norm && original !== norm) displayMap[norm] = original
+    }
+    console.log(`Merged ${supplementRaw.length} supplement entries.`)
   }
 
   const FOREIGN_CHARS = /[kwy]/
