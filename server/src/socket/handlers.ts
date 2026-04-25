@@ -10,7 +10,7 @@ import {
 import { Room } from '../types'
 
 const MAX_ATTEMPTS = 6
-const ROUND_DURATION_MS = 5 * 60 * 1000  // 5 minutes
+const DEFAULT_ROUND_DURATION = 3  // minutes
 const NEXT_ROUND_DELAY_MS = 4000
 
 // In-memory timers keyed by room code
@@ -22,11 +22,13 @@ function clearRoomTimer(code: string) {
 }
 
 function emitRoundStart(io: Server, room: Room) {
-  const roundEndTime = Date.now() + ROUND_DURATION_MS
+  const roundDurationMs = room.roundDuration * 60 * 1000
+  const roundEndTime = Date.now() + roundDurationMs
   io.to(room.code).emit('round_start', {
     round: room.currentRound,
     totalRounds: room.totalRounds,
     roundEndTime,
+    roundDuration: room.roundDuration,
   })
   return roundEndTime
 }
@@ -51,22 +53,23 @@ function scheduleRoundTimeout(io: Server, redis: Redis, room: Room, roundEndTime
 }
 
 export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
-  socket.on('create_room', async (data: { playerName: string; maxPlayers?: number }) => {
+  socket.on('create_room', async (data: { playerName: string; maxPlayers?: number; roundDuration?: number }) => {
     try {
       const playerName = (data?.playerName ?? '').trim().slice(0, 20)
       if (!playerName) { socket.emit('error', { message: 'Nome inválido.' }); return }
 
       const maxPlayers = Math.min(4, Math.max(2, Math.floor(data?.maxPlayers ?? 2)))
+      const roundDuration = Math.min(10, Math.max(1, Math.round(data?.roundDuration ?? DEFAULT_ROUND_DURATION)))
 
       // Leave any previous room so stale socket.io room membership doesn't linger
       const prevCode = await redis.get(`socket:${socket.id}`)
       if (prevCode) socket.leave(prevCode)
 
-      const room = await createRoom(redis, socket.id, playerName, maxPlayers)
+      const room = await createRoom(redis, socket.id, playerName, maxPlayers, roundDuration)
       await setSocketRoom(redis, socket.id, room.code)
       socket.join(room.code)
 
-      socket.emit('room_created', { code: room.code, maxPlayers: room.maxPlayers })
+      socket.emit('room_created', { code: room.code, maxPlayers: room.maxPlayers, roundDuration: room.roundDuration })
     } catch (err) {
       console.error('create_room error:', err)
       socket.emit('error', { message: 'Erro ao criar sala.' })
@@ -115,6 +118,7 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
         socket.emit('room_joined', {
           code: room.code,
           maxPlayers: room.maxPlayers,
+          roundDuration: room.roundDuration,
           players: playerList,
         })
         socket.to(room.code).emit('player_joined', {

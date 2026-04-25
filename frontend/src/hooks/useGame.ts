@@ -27,7 +27,8 @@ export interface GameState {
   toast: string | null
   roundEndData: RoundEndData | null
   matchEndData: MatchEndData | null
-  timeLeft: number  // seconds; -1 = no active timer
+  timeLeft: number      // seconds; -1 = no active timer
+  roundDuration: number // minutes, for adaptive tick thresholds
 }
 
 const EMPTY_LETTERS = ['', '', '', '', '']
@@ -53,6 +54,7 @@ const INITIAL: GameState = {
   roundEndData: null,
   matchEndData: null,
   timeLeft: -1,
+  roundDuration: 3,
 }
 
 function resetInput() {
@@ -77,22 +79,24 @@ export function useGame() {
   }, [sounds])
 
   // Countdown ticker — runs while on game screen
-  const TIMER_THRESHOLDS = [60, 30, 10, 5, 4, 3, 2, 1]
+  const ALL_THRESHOLDS = [60, 30, 10, 5, 4, 3, 2, 1]
   useEffect(() => {
     if (state.screen !== 'game') return
+    const roundSecs = state.roundDuration * 60
+    const activeThresholds = ALL_THRESHOLDS.filter(t => t < roundSecs)
     const interval = setInterval(() => {
       const t = Math.max(0, Math.round((roundEndTimeRef.current - Date.now()) / 1000))
       setState(s => s.screen === 'game' ? { ...s, timeLeft: t } : s)
-      for (const threshold of TIMER_THRESHOLDS) {
+      for (const threshold of activeThresholds) {
         if (t <= threshold && !timerSoundedRef.current.has(threshold)) {
           timerSoundedRef.current.add(threshold)
-          sounds.onTick(threshold)
+          soundsRef.current.onTick(threshold)
           break
         }
       }
     }, 500)
     return () => clearInterval(interval)
-  }, [state.screen, state.currentRound, sounds])
+  }, [state.screen, state.currentRound, state.roundDuration, sounds])
 
   useEffect(() => {
     const socket = getSocket()
@@ -106,22 +110,24 @@ export function useGame() {
       hasConnectedRef.current = true
     })
 
-    socket.on('room_created', ({ code, maxPlayers }: { code: string; maxPlayers: number }) => {
+    socket.on('room_created', ({ code, maxPlayers, roundDuration }: { code: string; maxPlayers: number; roundDuration: number }) => {
       setState(s => ({
         ...s,
         screen: 'waiting',
         roomCode: code,
         maxPlayers,
+        roundDuration,
         waitingPlayers: [{ name: s.myName, score: 0 }],
       }))
     })
 
-    socket.on('room_joined', ({ code, maxPlayers, players }: { code: string; maxPlayers: number; players: PlayerInfo[] }) => {
+    socket.on('room_joined', ({ code, maxPlayers, roundDuration, players }: { code: string; maxPlayers: number; roundDuration: number; players: PlayerInfo[] }) => {
       setState(s => ({
         ...s,
         screen: 'waiting',
         roomCode: code,
         maxPlayers,
+        roundDuration,
         waitingPlayers: players,
       }))
     })
@@ -134,7 +140,7 @@ export function useGame() {
       setState(s => ({ ...s, screen: 'game', players }))
     })
 
-    socket.on('round_start', ({ round, totalRounds, roundEndTime }: { round: number; totalRounds: number; roundEndTime: number }) => {
+    socket.on('round_start', ({ round, totalRounds, roundEndTime, roundDuration }: { round: number; totalRounds: number; roundEndTime: number; roundDuration: number }) => {
       roundEndTimeRef.current = roundEndTime
       timerSoundedRef.current = new Set()
       setState(s => ({
@@ -142,6 +148,7 @@ export function useGame() {
         screen: 'game',
         currentRound: round,
         totalRounds,
+        roundDuration,
         guesses: [],
         results: [],
         ...resetInput(),
@@ -255,10 +262,10 @@ export function useGame() {
     }
   }, [])
 
-  const createRoom = useCallback((playerName: string, maxPlayers: number) => {
+  const createRoom = useCallback((playerName: string, maxPlayers: number, roundDuration: number) => {
     setState(s => ({ ...s, myName: playerName }))
     getSocket().connect()
-    getSocket().emit('create_room', { playerName, maxPlayers })
+    getSocket().emit('create_room', { playerName, maxPlayers, roundDuration })
   }, [])
 
   const joinRoom = useCallback((code: string, playerName: string) => {

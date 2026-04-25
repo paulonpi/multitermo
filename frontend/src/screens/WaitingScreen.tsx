@@ -6,9 +6,10 @@ interface WaitingScreenProps {
   playerName: string
   players: PlayerInfo[]
   maxPlayers: number
+  roundDuration: number
 }
 
-export function WaitingScreen({ code, playerName, players, maxPlayers }: WaitingScreenProps) {
+export function WaitingScreen({ code, playerName, players, maxPlayers, roundDuration }: WaitingScreenProps) {
   const [copied, setCopied] = useState<'code' | 'link' | null>(null)
 
   const copyCode = () => {
@@ -54,6 +55,9 @@ export function WaitingScreen({ code, playerName, players, maxPlayers }: Waiting
       <div className="flex flex-col items-center gap-2">
         <p className="text-sm font-bold" style={{ color: 'var(--color-right)' }}>
           {players.length}/{maxPlayers} jogadores
+        </p>
+        <p className="text-xs" style={{ color: '#8a7880' }}>
+          {roundDuration} {roundDuration === 1 ? 'minuto' : 'minutos'} por rodada
         </p>
         <div className="flex flex-col gap-1 items-center">
           {players.map(p => (

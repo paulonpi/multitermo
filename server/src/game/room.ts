@@ -20,13 +20,14 @@ function generateCode(): string {
   ).join('')
 }
 
-export async function createRoom(redis: Redis, socketId: string, playerName: string, maxPlayers: number): Promise<Room> {
+export async function createRoom(redis: Redis, socketId: string, playerName: string, maxPlayers: number, roundDuration: number): Promise<Room> {
   const code = generateCode()
   const player: Player = { socketId, name: playerName, score: 0 }
   const room: Room = {
     code,
     status: 'waiting',
     maxPlayers,
+    roundDuration,
     players: [player],
     currentRound: 1,
     totalRounds: TOTAL_ROUNDS,

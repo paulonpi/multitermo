@@ -19,6 +19,7 @@ export interface Room {
   code: string
   status: RoomStatus
   maxPlayers: number
+  roundDuration: number  // minutes, 1–10
   players: Player[]
   currentRound: number
   totalRounds: number

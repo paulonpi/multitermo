@@ -23,6 +23,7 @@ export default function App() {
           playerName={state.myName}
           players={state.waitingPlayers}
           maxPlayers={state.maxPlayers}
+          roundDuration={state.roundDuration}
         />
       )
 

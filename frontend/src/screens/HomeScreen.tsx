@@ -10,7 +10,7 @@ interface RoomStatus {
 }
 
 interface HomeScreenProps {
-  onCreateRoom: (name: string, maxPlayers: number) => void
+  onCreateRoom: (name: string, maxPlayers: number, roundDuration: number) => void
   onJoinRoom: (code: string, name: string) => void
   onHowToPlay: () => void
 }
@@ -26,6 +26,7 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
     return params.get('room') ? 'join' : 'idle'
   })
   const [playerCount, setPlayerCount] = useState(2)
+  const [roundDuration, setRoundDuration] = useState(3)
   const [roomStatus, setRoomStatus] = useState<RoomStatus | 'loading' | null>(null)
 
   // Auto-check room status when code is complete
@@ -45,7 +46,7 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
 
   const handleCreate = (e: FormEvent) => {
     e.preventDefault()
-    if (name.trim()) onCreateRoom(name.trim(), playerCount)
+    if (name.trim()) onCreateRoom(name.trim(), playerCount, roundDuration)
   }
 
   const handleJoin = (e: FormEvent) => {
@@ -132,6 +133,28 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <p className="text-xs uppercase tracking-widest text-center" style={{ color: '#8a7880' }}>
+                Tempo por rodada
+              </p>
+              <div className="flex gap-1 flex-wrap justify-center">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setRoundDuration(n)}
+                    className={roundDuration === n ? 'btn-primary' : 'btn-outline'}
+                    style={{ width: '2.4rem', padding: '0.5rem 0', fontSize: '0.8rem' }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-center" style={{ color: '#8a7880' }}>
+                {roundDuration} {roundDuration === 1 ? 'minuto' : 'minutos'} por rodada
+              </p>
             </div>
 
             <button

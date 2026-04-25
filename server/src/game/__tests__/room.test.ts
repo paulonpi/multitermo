@@ -25,7 +25,7 @@ function makeRedisMock() {
 describe('createRoom', () => {
   it('creates a room in waiting status', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 'socket-1', 'Alice', 2)
+    const room = await createRoom(redis, 'socket-1', 'Alice', 2, 3)
 
     expect(room.status).toBe('waiting')
     expect(room.maxPlayers).toBe(2)
@@ -37,20 +37,20 @@ describe('createRoom', () => {
 
   it('generates a 4-character uppercase code', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 2)
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
     expect(room.code).toMatch(/^[A-Z]{4}$/)
   })
 
   it('sets totalRounds to 5', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 2)
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
     expect(room.totalRounds).toBe(5)
     expect(room.currentRound).toBe(1)
   })
 
   it('persists the room to Redis', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 2)
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
     const fetched = await getRoom(redis, room.code)
     expect(fetched).not.toBeNull()
     expect(fetched!.code).toBe(room.code)
@@ -62,7 +62,7 @@ describe('createRoom', () => {
 describe('joinRoom', () => {
   it('adds a second player and keeps status waiting for 3-player room', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 3)
+    const room = await createRoom(redis, 's1', 'Alice', 3, 3)
     const updated = await joinRoom(redis, room.code, 's2', 'Bob')
 
     expect(updated).not.toBeNull()
@@ -73,7 +73,7 @@ describe('joinRoom', () => {
 
   it('starts the game when the last required player joins', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 2)
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
     const updated = await joinRoom(redis, room.code, 's2', 'Bob')
 
     expect(updated!.status).toBe('playing')
@@ -84,7 +84,7 @@ describe('joinRoom', () => {
 
   it('adds a round state entry for each player that joins', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 3)
+    const room = await createRoom(redis, 's1', 'Alice', 3, 3)
     await joinRoom(redis, room.code, 's2', 'Bob')
     const final = await joinRoom(redis, room.code, 's3', 'Carol')
 
@@ -101,14 +101,14 @@ describe('joinRoom', () => {
 
   it('returns null when room is already full', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 2)
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
     await joinRoom(redis, room.code, 's2', 'Bob')            // fills room
     expect(await joinRoom(redis, room.code, 's3', 'Carol')).toBeNull()
   })
 
   it('returns null when room is already playing', async () => {
     const redis = makeRedisMock()
-    const room = await createRoom(redis, 's1', 'Alice', 2)
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
     await joinRoom(redis, room.code, 's2', 'Bob')            // status → playing
     expect(await joinRoom(redis, room.code, 's3', 'Carol')).toBeNull()
   })
