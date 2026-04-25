@@ -66,22 +66,21 @@ describe('soundSubmit', () => {
 })
 
 describe('soundInvalid', () => {
-  it('plays a sawtooth tone with frequency glide', () => {
+  it('plays two low sine tones', () => {
     const ctx = makeCtx()
     soundInvalid(ctx as any)
-    expectSoundPlayed(ctx)
-    expect(ctx._osc.type).toBe('sawtooth')
-    expect(ctx._osc.frequency.linearRampToValueAtTime).toHaveBeenCalledWith(110, expect.any(Number))
+    expect(ctx.createOscillator).toHaveBeenCalledTimes(2)
+    expect(ctx.createGain).toHaveBeenCalledTimes(2)
+    expect(ctx._osc.type).toBe('sine')
   })
 })
 
 describe('soundSolve', () => {
-  it('plays 3 notes (C5 E5 G5)', () => {
+  it('plays 2 notes (C5 G5)', () => {
     const ctx = makeCtx()
     soundSolve(ctx as any)
-    // 3 oscillators created
-    expect(ctx.createOscillator).toHaveBeenCalledTimes(3)
-    expect(ctx.createGain).toHaveBeenCalledTimes(3)
+    expect(ctx.createOscillator).toHaveBeenCalledTimes(2)
+    expect(ctx.createGain).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -90,8 +89,7 @@ describe('soundOpponentSolve', () => {
     const ctx = makeCtx()
     soundOpponentSolve(ctx as any)
     expectSoundPlayed(ctx)
-    // volume should be subtle — gain set to 0.12
-    expect(ctx._gain.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0.12, expect.any(Number))
+    expect(ctx._gain.gain.setValueAtTime).toHaveBeenCalledWith(0.07, expect.any(Number))
   })
 })
 
@@ -104,18 +102,18 @@ describe('soundRoundEnd', () => {
 })
 
 describe('soundWin', () => {
-  it('plays 4 ascending notes', () => {
+  it('plays 3 ascending notes', () => {
     const ctx = makeCtx()
     soundWin(ctx as any)
-    expect(ctx.createOscillator).toHaveBeenCalledTimes(4)
+    expect(ctx.createOscillator).toHaveBeenCalledTimes(3)
   })
 })
 
 describe('soundLose', () => {
-  it('plays 3 descending notes', () => {
+  it('plays 2 descending notes', () => {
     const ctx = makeCtx()
     soundLose(ctx as any)
-    expect(ctx.createOscillator).toHaveBeenCalledTimes(3)
+    expect(ctx.createOscillator).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -135,16 +133,12 @@ describe('soundTick', () => {
     expect(ctx.createOscillator).not.toHaveBeenCalled()
   })
 
-  it('uses square oscillator for urgency thresholds (≤10s)', () => {
-    const ctx = makeCtx()
-    soundTick(ctx as any, 5)
-    expect(ctx._osc.type).toBe('square')
-  })
-
-  it('uses sine oscillator for early thresholds (60s, 30s)', () => {
-    const ctx = makeCtx()
-    soundTick(ctx as any, 60)
-    expect(ctx._osc.type).toBe('sine')
+  it('uses sine oscillator for all thresholds', () => {
+    for (const t of [60, 30, 10, 5, 4, 3, 2, 1]) {
+      const ctx = makeCtx()
+      soundTick(ctx as any, t)
+      expect(ctx._osc.type).toBe('sine')
+    }
   })
 
   it('increases frequency as time runs out', () => {
@@ -152,11 +146,9 @@ describe('soundTick', () => {
     for (const t of [10, 5, 4, 3, 2, 1]) {
       const ctx = makeCtx()
       soundTick(ctx as any, t)
-      // frequency is set via setValueAtTime(freq, time) — capture first call's first arg
       const firstCall = ctx._osc.frequency.setValueAtTime.mock.calls[0]
       freqs.push(firstCall[0] as number)
     }
-    // Each tick should have a higher frequency than the previous
     for (let i = 1; i < freqs.length; i++) {
       expect(freqs[i]).toBeGreaterThan(freqs[i - 1])
     }

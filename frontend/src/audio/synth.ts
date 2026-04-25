@@ -2,15 +2,14 @@
 
 interface ToneOpts {
   frequencies: number[]  // one per note in sequence
-  type: OscillatorType
+  type?: OscillatorType  // default 'sine'
   noteDuration: number   // ms per note
-  volume?: number        // 0–1, default 0.3
-  gap?: number           // ms silence between notes, default 15
-  freqEnd?: number       // if set, glide frequency from frequencies[0] to freqEnd
+  volume?: number        // 0–1, default 0.15
+  gap?: number           // ms silence between notes, default 20
 }
 
 function playTone(ctx: AudioContext, opts: ToneOpts): void {
-  const { frequencies, type, noteDuration, volume = 0.3, gap = 15, freqEnd } = opts
+  const { frequencies, type = 'sine', noteDuration, volume = 0.15, gap = 20 } = opts
   const now = ctx.currentTime
   const noteSec = noteDuration / 1000
   const gapSec  = gap / 1000
@@ -27,98 +26,64 @@ function playTone(ctx: AudioContext, opts: ToneOpts): void {
 
     osc.type = type
     osc.frequency.setValueAtTime(freq, t0)
-    if (freqEnd !== undefined && i === frequencies.length - 1) {
-      osc.frequency.linearRampToValueAtTime(freqEnd, t1)
-    }
 
-    gain.gain.setValueAtTime(0, t0)
-    gain.gain.linearRampToValueAtTime(volume, t0 + 0.005)
-    gain.gain.setValueAtTime(volume, t1 - 0.01)
-    gain.gain.linearRampToValueAtTime(0, t1)
+    // Instant attack, exponential decay — natural chime-like envelope
+    gain.gain.setValueAtTime(volume, t0)
+    gain.gain.exponentialRampToValueAtTime(0.001, t1)
 
     osc.start(t0)
     osc.stop(t1 + 0.01)
   })
 }
 
-// ENTER key pressed
+// ENTER key pressed — soft, short click
 export function soundSubmit(ctx: AudioContext): void {
-  playTone(ctx, { frequencies: [600], type: 'sine', noteDuration: 55, volume: 0.22 })
+  playTone(ctx, { frequencies: [300], noteDuration: 35, volume: 0.09 })
 }
 
-// Word not in dictionary / invalid
+// Word not in dictionary — two low thumps (no harsh buzz)
 export function soundInvalid(ctx: AudioContext): void {
-  playTone(ctx, {
-    frequencies: [220],
-    type: 'sawtooth',
-    noteDuration: 320,
-    volume: 0.28,
-    freqEnd: 110,
-  })
+  playTone(ctx, { frequencies: [200, 160], noteDuration: 80, volume: 0.13, gap: 45 })
 }
 
-// Player solved the word
+// Player solved the word — gentle two-note chime
 export function soundSolve(ctx: AudioContext): void {
-  playTone(ctx, {
-    frequencies: [523, 659, 784],   // C5 E5 G5
-    type: 'sine',
-    noteDuration: 80,
-    volume: 0.32,
-    gap: 20,
-  })
+  playTone(ctx, { frequencies: [523, 784], noteDuration: 100, volume: 0.14, gap: 35 })
 }
 
-// Opponent solved the word (subtle)
+// Opponent solved the word — barely perceptible ping
 export function soundOpponentSolve(ctx: AudioContext): void {
-  playTone(ctx, { frequencies: [440], type: 'sine', noteDuration: 200, volume: 0.12 })
+  playTone(ctx, { frequencies: [392], noteDuration: 130, volume: 0.07 })
 }
 
-// Round ended
+// Round ended — soft two-note close
 export function soundRoundEnd(ctx: AudioContext): void {
-  playTone(ctx, {
-    frequencies: [523, 659],  // C5 E5
-    type: 'sine',
-    noteDuration: 180,
-    volume: 0.26,
-    gap: 30,
-  })
+  playTone(ctx, { frequencies: [440, 523], noteDuration: 150, volume: 0.12, gap: 40 })
 }
 
-// Match won
+// Match won — soft three-note ascending chime
 export function soundWin(ctx: AudioContext): void {
-  playTone(ctx, {
-    frequencies: [523, 659, 784, 1047],  // C5 E5 G5 C6
-    type: 'sine',
-    noteDuration: 110,
-    volume: 0.35,
-    gap: 25,
-  })
+  playTone(ctx, { frequencies: [523, 659, 784], noteDuration: 100, volume: 0.14, gap: 30 })
 }
 
-// Match lost
+// Match lost — two descending notes
 export function soundLose(ctx: AudioContext): void {
-  playTone(ctx, {
-    frequencies: [262, 220, 175],  // C4 A3 F3
-    type: 'sine',
-    noteDuration: 180,
-    volume: 0.28,
-    gap: 20,
-  })
+  playTone(ctx, { frequencies: [330, 262], noteDuration: 140, volume: 0.10, gap: 35 })
 }
 
-// Timer threshold tick — frequency and volume scale with urgency
+// Timer threshold tick — all sine, very subtle, gentle escalation only at last seconds
 export function soundTick(ctx: AudioContext, secondsLeft: number): void {
-  const map: Record<number, { freq: number; vol: number; dur: number; type: OscillatorType }> = {
-    60: { freq: 880, vol: 0.18, dur: 280, type: 'sine'   },
-    30: { freq: 880, vol: 0.25, dur: 280, type: 'sine'   },
-    10: { freq: 440, vol: 0.28, dur:  90, type: 'square' },
-     5: { freq: 520, vol: 0.32, dur:  90, type: 'square' },
-     4: { freq: 600, vol: 0.35, dur: 100, type: 'square' },
-     3: { freq: 680, vol: 0.37, dur: 100, type: 'square' },
-     2: { freq: 760, vol: 0.38, dur: 100, type: 'square' },
-     1: { freq: 840, vol: 0.40, dur: 110, type: 'square' },
+  const map: Record<number, { freq: number; vol: number; dur: number }> = {
+    60: { freq: 480, vol: 0.06, dur: 50 },
+    30: { freq: 480, vol: 0.08, dur: 50 },
+    10: { freq: 440, vol: 0.09, dur: 40 },
+     5: { freq: 480, vol: 0.10, dur: 40 },
+     4: { freq: 520, vol: 0.11, dur: 45 },
+     3: { freq: 560, vol: 0.12, dur: 45 },
+     2: { freq: 600, vol: 0.13, dur: 45 },
+     1: { freq: 640, vol: 0.14, dur: 50 },
   }
   const cfg = map[secondsLeft]
   if (!cfg) return
-  playTone(ctx, { frequencies: [cfg.freq], type: cfg.type, noteDuration: cfg.dur, volume: cfg.vol })
+  playTone(ctx, { frequencies: [cfg.freq], noteDuration: cfg.dur, volume: cfg.vol })
 }
