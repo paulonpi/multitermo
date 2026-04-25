@@ -126,7 +126,7 @@ export function HowToPlayScreen({ onBack }: HowToPlayScreenProps) {
           <ul className="flex flex-col gap-1 pl-2" style={{ color: '#8a7880', fontSize: '0.8rem' }}>
             <li>• 5 rodadas com palavras diferentes</li>
             <li>• Vence quem ganhar mais rodadas</li>
-            <li>• Cada rodada tem limite de <strong>5 minutos</strong></li>
+            <li>• Cada rodada tem um limite de tempo definido pelo host (1–10 min)</li>
           </ul>
         </div>
       </Section>
