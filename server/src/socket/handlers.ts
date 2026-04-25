@@ -38,7 +38,6 @@ function scheduleRoundTimeout(io: Server, redis: Redis, room: Room, roundEndTime
     try {
       const fresh = await getRoom(redis, room.code)
       if (!fresh || fresh.status !== 'playing' || fresh.currentRound !== room.currentRound) return
-      // Mark any unfinished players as timed-out (done, not solved)
       for (const rs of fresh.roundStates) {
         if (!rs.done) { rs.done = true; rs.solved = false }
       }
@@ -52,16 +51,18 @@ function scheduleRoundTimeout(io: Server, redis: Redis, room: Room, roundEndTime
 }
 
 export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
-  socket.on('create_room', async (data: { playerName: string }) => {
+  socket.on('create_room', async (data: { playerName: string; maxPlayers?: number }) => {
     try {
       const playerName = (data?.playerName ?? '').trim().slice(0, 20)
       if (!playerName) { socket.emit('error', { message: 'Nome inválido.' }); return }
 
-      const room = await createRoom(redis, socket.id, playerName)
+      const maxPlayers = Math.min(4, Math.max(2, Math.floor(data?.maxPlayers ?? 2)))
+
+      const room = await createRoom(redis, socket.id, playerName, maxPlayers)
       await setSocketRoom(redis, socket.id, room.code)
       socket.join(room.code)
 
-      socket.emit('room_created', { code: room.code })
+      socket.emit('room_created', { code: room.code, maxPlayers: room.maxPlayers })
     } catch (err) {
       console.error('create_room error:', err)
       socket.emit('error', { message: 'Erro ao criar sala.' })
@@ -84,14 +85,28 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       await setSocketRoom(redis, socket.id, room.code)
       socket.join(room.code)
 
-      io.to(room.code).emit('game_start', {
-        players: room.players.map(p => ({ name: p.name, score: p.score })),
-      })
+      const playerList = room.players.map(p => ({ name: p.name, score: p.score }))
 
-      setTimeout(() => {
-        const roundEndTime = emitRoundStart(io, room)
-        scheduleRoundTimeout(io, redis, room, roundEndTime)
-      }, 1000)
+      if (room.status === 'playing') {
+        // Room is now full — start the game
+        io.to(room.code).emit('game_start', { players: playerList })
+
+        setTimeout(() => {
+          const roundEndTime = emitRoundStart(io, room)
+          scheduleRoundTimeout(io, redis, room, roundEndTime)
+        }, 1000)
+      } else {
+        // Room still waiting for more players
+        socket.emit('room_joined', {
+          code: room.code,
+          maxPlayers: room.maxPlayers,
+          players: playerList,
+        })
+        socket.to(room.code).emit('player_joined', {
+          players: playerList,
+          maxPlayers: room.maxPlayers,
+        })
+      }
     } catch (err) {
       console.error('join_room error:', err)
       socket.emit('error', { message: 'Erro ao entrar na sala.' })
@@ -138,14 +153,18 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
 
       socket.emit('guess_result', { valid: true, guess: getDisplayWord(guess), result, attempt, solved, done: roundState.done })
 
-      const opponentIdx = 1 - playerIdx
-      if (room.players[opponentIdx]) {
-        io.to(room.players[opponentIdx].socketId).emit('opponent_progress', {
-          attempt,
-          result,
-          done: roundState.done,
-          solved: roundState.solved,
-        })
+      // Notify all other players of this player's progress
+      const senderName = room.players[playerIdx].name
+      for (let i = 0; i < room.players.length; i++) {
+        if (i !== playerIdx) {
+          io.to(room.players[i].socketId).emit('opponent_progress', {
+            playerName: senderName,
+            attempt,
+            result,
+            done: roundState.done,
+            solved: roundState.solved,
+          })
+        }
       }
 
       if (solved || room.roundStates.every(rs => rs.done)) {
@@ -166,9 +185,11 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
 
       clearRoomTimer(room.code)
 
-      const opponentIdx = 1 - getPlayerIndex(room, socket.id)
-      if (room.players[opponentIdx]) {
-        io.to(room.players[opponentIdx].socketId).emit('opponent_disconnected')
+      const playerIdx = getPlayerIndex(room, socket.id)
+      for (let i = 0; i < room.players.length; i++) {
+        if (i !== playerIdx) {
+          io.to(room.players[i].socketId).emit('opponent_disconnected')
+        }
       }
       room.status = 'finished'
       await saveRoom(redis, room)
@@ -185,35 +206,52 @@ async function resolveRound(io: Server, redis: Redis, room: Room, timedOut: bool
 
   clearRoomTimer(room.code)
 
-  const [s0, s1] = room.roundStates
-  const [p0, p1] = room.players
+  // Determine round winner for N players
+  const entries = room.players.map((p, i) => ({
+    player: p,
+    state: room.roundStates[i],
+    idx: i,
+  }))
+
+  const solvers = entries
+    .filter(e => e.state.solved)
+    .sort((a, b) => a.state.guesses.length - b.state.guesses.length)
 
   let winnerIdx: number | null = null
-  if (s0.solved && !s1.solved) winnerIdx = 0
-  else if (!s0.solved && s1.solved) winnerIdx = 1
-  else if (s0.solved && s1.solved) {
-    // Both solved — fewest guesses wins
-    if (s0.guesses.length < s1.guesses.length) winnerIdx = 0
-    else if (s1.guesses.length < s0.guesses.length) winnerIdx = 1
-  } else if (s0.results.length + s1.results.length > 0) {
-    // Neither solved — best single attempt wins (most greens, tie-break yellows)
-    const [g0, y0] = bestAttemptScore(s0.results)
-    const [g1, y1] = bestAttemptScore(s1.results)
-    if (g0 > g1 || (g0 === g1 && y0 > y1)) winnerIdx = 0
-    else if (g1 > g0 || (g1 === g0 && y1 > y0)) winnerIdx = 1
+
+  if (solvers.length === 1) {
+    winnerIdx = solvers[0].idx
+  } else if (solvers.length > 1 && solvers[0].state.guesses.length < solvers[1].state.guesses.length) {
+    winnerIdx = solvers[0].idx
+  } else if (solvers.length === 0) {
+    const nonEmpty = entries.filter(e => e.state.results.length > 0)
+    if (nonEmpty.length > 0) {
+      const scored = nonEmpty
+        .map(e => ({ idx: e.idx, score: bestAttemptScore(e.state.results) }))
+        .sort((a, b) => b.score[0] - a.score[0] || b.score[1] - a.score[1])
+      if (scored.length === 1 || scored[0].score[0] !== scored[1].score[0] || scored[0].score[1] !== scored[1].score[1]) {
+        winnerIdx = scored[0].idx
+      }
+    }
   }
 
   if (winnerIdx !== null) room.players[winnerIdx].score++
+
+  const scores = Object.fromEntries(room.players.map(p => [p.name, p.score]))
+  const playerResults = Object.fromEntries(
+    room.players.map((p, i) => [p.name, {
+      guesses: room.roundStates[i].guesses.map(getDisplayWord),
+      results: room.roundStates[i].results,
+      solved: room.roundStates[i].solved,
+    }])
+  )
 
   io.to(room.code).emit('round_end', {
     round: room.currentRound,
     word: room.currentWordDisplay || room.currentWord,
     winnerName: winnerIdx !== null ? room.players[winnerIdx].name : null,
-    scores: { [p0.name]: room.players[0].score, [p1.name]: room.players[1].score },
-    playerResults: {
-      [p0.name]: { guesses: s0.guesses.map(getDisplayWord), results: s0.results, solved: s0.solved },
-      [p1.name]: { guesses: s1.guesses.map(getDisplayWord), results: s1.results, solved: s1.solved },
-    },
+    scores,
+    playerResults,
     timedOut,
   })
 
@@ -221,14 +259,14 @@ async function resolveRound(io: Server, redis: Redis, room: Room, timedOut: bool
     room.status = 'finished'
     await saveRoom(redis, room)
 
-    const matchWinner =
-      room.players[0].score > room.players[1].score ? room.players[0] :
-      room.players[1].score > room.players[0].score ? room.players[1] : null
+    const maxScore = Math.max(...room.players.map(p => p.score))
+    const topPlayers = room.players.filter(p => p.score === maxScore)
+    const matchWinner = topPlayers.length === 1 ? topPlayers[0] : null
 
     setTimeout(() => {
       io.to(room.code).emit('match_end', {
         winnerName: matchWinner?.name ?? null,
-        scores: { [p0.name]: room.players[0].score, [p1.name]: room.players[1].score },
+        scores,
       })
     }, NEXT_ROUND_DELAY_MS)
   } else {

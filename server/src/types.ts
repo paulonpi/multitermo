@@ -18,6 +18,7 @@ export type RoomStatus = 'waiting' | 'playing' | 'finished'
 export interface Room {
   code: string
   status: RoomStatus
+  maxPlayers: number
   players: Player[]
   currentRound: number
   totalRounds: number

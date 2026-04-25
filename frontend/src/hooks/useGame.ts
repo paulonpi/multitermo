@@ -11,14 +11,16 @@ export interface GameState {
   roomCode: string
   myName: string
   players: PlayerInfo[]
+  maxPlayers: number
+  waitingPlayers: PlayerInfo[]
   currentRound: number
   totalRounds: number
   guesses: string[]
   results: TileState[][]
   currentLetters: string[]
   cursorPos: number
-  opponentAttempts: OpponentAttempt[]
-  opponentDone: boolean
+  opponentAttempts: Record<string, OpponentAttempt[]>
+  opponentDone: Record<string, boolean>
   myDone: boolean
   shakeRow: boolean
   toast: string | null
@@ -34,14 +36,16 @@ const INITIAL: GameState = {
   roomCode: '',
   myName: '',
   players: [],
+  maxPlayers: 2,
+  waitingPlayers: [],
   currentRound: 1,
   totalRounds: 5,
   guesses: [],
   results: [],
   currentLetters: EMPTY_LETTERS,
   cursorPos: 0,
-  opponentAttempts: [],
-  opponentDone: false,
+  opponentAttempts: {},
+  opponentDone: {},
   myDone: false,
   shakeRow: false,
   toast: null,
@@ -76,8 +80,28 @@ export function useGame() {
   useEffect(() => {
     const socket = getSocket()
 
-    socket.on('room_created', ({ code }: { code: string }) => {
-      setState(s => ({ ...s, screen: 'waiting', roomCode: code }))
+    socket.on('room_created', ({ code, maxPlayers }: { code: string; maxPlayers: number }) => {
+      setState(s => ({
+        ...s,
+        screen: 'waiting',
+        roomCode: code,
+        maxPlayers,
+        waitingPlayers: [{ name: s.myName, score: 0 }],
+      }))
+    })
+
+    socket.on('room_joined', ({ code, maxPlayers, players }: { code: string; maxPlayers: number; players: PlayerInfo[] }) => {
+      setState(s => ({
+        ...s,
+        screen: 'waiting',
+        roomCode: code,
+        maxPlayers,
+        waitingPlayers: players,
+      }))
+    })
+
+    socket.on('player_joined', ({ players, maxPlayers }: { players: PlayerInfo[]; maxPlayers: number }) => {
+      setState(s => ({ ...s, waitingPlayers: players, maxPlayers }))
     })
 
     socket.on('game_start', ({ players }: { players: PlayerInfo[] }) => {
@@ -94,8 +118,8 @@ export function useGame() {
         guesses: [],
         results: [],
         ...resetInput(),
-        opponentAttempts: [],
-        opponentDone: false,
+        opponentAttempts: {},
+        opponentDone: {},
         myDone: false,
         shakeRow: false,
         toast: null,
@@ -130,11 +154,17 @@ export function useGame() {
       }
     })
 
-    socket.on('opponent_progress', (data: { result: TileState[]; done: boolean }) => {
+    socket.on('opponent_progress', (data: { playerName: string; result: TileState[]; done: boolean }) => {
       setState(s => ({
         ...s,
-        opponentAttempts: [...s.opponentAttempts, { result: data.result }],
-        opponentDone: data.done,
+        opponentAttempts: {
+          ...s.opponentAttempts,
+          [data.playerName]: [...(s.opponentAttempts[data.playerName] ?? []), { result: data.result }],
+        },
+        opponentDone: {
+          ...s.opponentDone,
+          [data.playerName]: data.done,
+        },
       }))
     })
 
@@ -166,6 +196,8 @@ export function useGame() {
 
     return () => {
       socket.off('room_created')
+      socket.off('room_joined')
+      socket.off('player_joined')
       socket.off('game_start')
       socket.off('round_start')
       socket.off('guess_result')
@@ -177,16 +209,17 @@ export function useGame() {
     }
   }, [])
 
-  const createRoom = useCallback((playerName: string) => {
+  const createRoom = useCallback((playerName: string, maxPlayers: number) => {
     setState(s => ({ ...s, myName: playerName }))
     getSocket().connect()
-    getSocket().emit('create_room', { playerName })
+    getSocket().emit('create_room', { playerName, maxPlayers })
   }, [])
 
   const joinRoom = useCallback((code: string, playerName: string) => {
     setState(s => ({ ...s, myName: playerName }))
     getSocket().connect()
     getSocket().emit('join_room', { code, playerName })
+    history.replaceState(null, '', location.pathname)
   }, [])
 
   const onKeyPress = useCallback((key: string) => {
@@ -213,11 +246,9 @@ export function useGame() {
       setState(prev => {
         const letters = [...prev.currentLetters]
         if (letters[prev.cursorPos] !== '') {
-          // Clear current cell, cursor stays
           letters[prev.cursorPos] = ''
           return { ...prev, currentLetters: letters }
         } else if (prev.cursorPos > 0) {
-          // Move left and clear that cell
           letters[prev.cursorPos - 1] = ''
           return { ...prev, currentLetters: letters, cursorPos: prev.cursorPos - 1 }
         }

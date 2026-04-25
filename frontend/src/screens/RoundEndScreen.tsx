@@ -9,9 +9,6 @@ interface RoundEndScreenProps {
 
 export function RoundEndScreen({ data, myName, players }: RoundEndScreenProps) {
   const { round, word, winnerName, scores, playerResults } = data
-  const opponent = players.find(p => p.name !== myName)
-  const myResult = playerResults[myName]
-  const opponentResult = opponent ? playerResults[opponent.name] : null
 
   const resultMessage =
     winnerName === myName ? 'Você venceu esta rodada!' :
@@ -41,47 +38,36 @@ export function RoundEndScreen({ data, myName, players }: RoundEndScreenProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-6 text-sm font-bold">
-        {players.map((p, i) => (
+      <div className="flex items-center gap-3 text-sm font-bold flex-wrap justify-center">
+        {players.map(p => (
           <span key={p.name} style={{ color: p.name === myName ? 'var(--color-text)' : '#8a7880' }}>
-            {i === 1 && <span className="mr-6" style={{ color: '#4c4347' }}>×</span>}
             {p.name}: {scores[p.name] ?? 0}
           </span>
         ))}
       </div>
 
-      <div className="flex gap-8 mt-2 flex-wrap justify-center">
-        {myResult && (
-          <div className="flex flex-col items-center gap-1">
-            <p className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#8a7880' }}>{myName}</p>
-            {myResult.guesses.map((guess, row) => (
-              <div key={row} className="flex gap-1">
-                {guess.split('').map((letter, col) => (
-                  <Tile key={col} letter={letter.toUpperCase()} state={myResult.results[row][col]} size="small" />
-                ))}
-              </div>
-            ))}
-            {!myResult.solved && (
-              <p className="text-xs mt-1" style={{ color: '#4c4347' }}>não acertou</p>
-            )}
-          </div>
-        )}
-
-        {opponentResult && opponent && (
-          <div className="flex flex-col items-center gap-1">
-            <p className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#8a7880' }}>{opponent.name}</p>
-            {opponentResult.guesses.map((guess, row) => (
-              <div key={row} className="flex gap-1">
-                {guess.split('').map((letter, col) => (
-                  <Tile key={col} letter={letter.toUpperCase()} state={opponentResult.results[row][col]} size="small" />
-                ))}
-              </div>
-            ))}
-            {!opponentResult.solved && (
-              <p className="text-xs mt-1" style={{ color: '#4c4347' }}>não acertou</p>
-            )}
-          </div>
-        )}
+      <div className="flex gap-6 mt-2 flex-wrap justify-center">
+        {players.map(p => {
+          const res = playerResults[p.name]
+          if (!res) return null
+          return (
+            <div key={p.name} className="flex flex-col items-center gap-1">
+              <p className="text-xs mb-1 uppercase tracking-wider" style={{ color: p.name === myName ? 'var(--color-text)' : '#8a7880' }}>
+                {p.name}
+              </p>
+              {res.guesses.map((guess, row) => (
+                <div key={row} className="flex gap-1">
+                  {guess.split('').map((letter, col) => (
+                    <Tile key={col} letter={letter.toUpperCase()} state={res.results[row][col]} size="small" />
+                  ))}
+                </div>
+              ))}
+              {!res.solved && (
+                <p className="text-xs mt-1" style={{ color: '#4c4347' }}>não acertou</p>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <p className="text-xs animate-pulse mt-2" style={{ color: '#4c4347' }}>Próxima rodada em breve...</p>

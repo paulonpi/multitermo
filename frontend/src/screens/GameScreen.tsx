@@ -24,7 +24,7 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
     opponentAttempts, opponentDone, toast, myDone, timeLeft,
   } = state
 
-  const opponent = players.find(p => p.name !== myName)
+  const opponents = players.filter(p => p.name !== myName)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -81,12 +81,19 @@ export function GameScreen({ state, onKeyPress }: GameScreenProps) {
           />
         </div>
 
-        {opponent && (
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-xs uppercase tracking-widest" style={{ color: '#8a7880' }}>
-              {opponent.name} {opponentDone && '✓'}
-            </span>
-            <OpponentBoard attempts={opponentAttempts} done={opponentDone} />
+        {opponents.length > 0 && (
+          <div className="flex flex-col gap-4">
+            {opponents.map(opp => (
+              <div key={opp.name} className="flex flex-col items-center gap-2">
+                <span className="text-xs uppercase tracking-widest" style={{ color: '#8a7880' }}>
+                  {opp.name} {opponentDone[opp.name] && '✓'}
+                </span>
+                <OpponentBoard
+                  attempts={opponentAttempts[opp.name] ?? []}
+                  done={opponentDone[opp.name] ?? false}
+                />
+              </div>
+            ))}
           </div>
         )}
       </main>

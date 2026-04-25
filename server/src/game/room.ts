@@ -20,12 +20,13 @@ function generateCode(): string {
   ).join('')
 }
 
-export async function createRoom(redis: Redis, socketId: string, playerName: string): Promise<Room> {
+export async function createRoom(redis: Redis, socketId: string, playerName: string, maxPlayers: number): Promise<Room> {
   const code = generateCode()
   const player: Player = { socketId, name: playerName, score: 0 }
   const room: Room = {
     code,
     status: 'waiting',
+    maxPlayers,
     players: [player],
     currentRound: 1,
     totalRounds: TOTAL_ROUNDS,
@@ -44,13 +45,16 @@ export async function joinRoom(
   playerName: string,
 ): Promise<Room | null> {
   const room = await getRoom(redis, code)
-  if (!room || room.status !== 'waiting' || room.players.length >= 2) return null
+  if (!room || room.status !== 'waiting' || room.players.length >= room.maxPlayers) return null
 
   room.players.push({ socketId, name: playerName, score: 0 })
   room.roundStates.push(emptyRoundState())
-  room.status = 'playing'
-  room.currentWord = pickRandomWord()
-  room.currentWordDisplay = getDisplayWord(room.currentWord)
+
+  if (room.players.length === room.maxPlayers) {
+    room.status = 'playing'
+    room.currentWord = pickRandomWord()
+    room.currentWordDisplay = getDisplayWord(room.currentWord)
+  }
 
   await saveRoom(redis, room)
   return room

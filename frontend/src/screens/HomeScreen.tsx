@@ -1,18 +1,25 @@
 import { useState, type FormEvent } from 'react'
 
 interface HomeScreenProps {
-  onCreateRoom: (name: string) => void
+  onCreateRoom: (name: string, maxPlayers: number) => void
   onJoinRoom: (code: string, name: string) => void
 }
 
 export function HomeScreen({ onCreateRoom, onJoinRoom }: HomeScreenProps) {
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
-  const [mode, setMode] = useState<'idle' | 'join'>('idle')
+  const [code, setCode] = useState(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('room')?.toUpperCase() ?? ''
+  })
+  const [mode, setMode] = useState<'idle' | 'join'>(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('room') ? 'join' : 'idle'
+  })
+  const [playerCount, setPlayerCount] = useState(2)
 
   const handleCreate = (e: FormEvent) => {
     e.preventDefault()
-    if (name.trim()) onCreateRoom(name.trim())
+    if (name.trim()) onCreateRoom(name.trim(), playerCount)
   }
 
   const handleJoin = (e: FormEvent) => {
@@ -43,6 +50,25 @@ export function HomeScreen({ onCreateRoom, onJoinRoom }: HomeScreenProps) {
 
         {mode === 'idle' && (
           <>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs uppercase tracking-widest text-center" style={{ color: '#8a7880' }}>
+                Número de jogadores
+              </p>
+              <div className="flex gap-2">
+                {[2, 3, 4].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPlayerCount(n)}
+                    className={playerCount === n ? 'btn-primary' : 'btn-outline'}
+                    style={{ flex: 1, padding: '0.5rem' }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={!name.trim()}

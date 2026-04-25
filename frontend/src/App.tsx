@@ -13,7 +13,14 @@ export default function App() {
       return <HomeScreen onCreateRoom={createRoom} onJoinRoom={joinRoom} />
 
     case 'waiting':
-      return <WaitingScreen code={state.roomCode} playerName={state.myName} />
+      return (
+        <WaitingScreen
+          code={state.roomCode}
+          playerName={state.myName}
+          players={state.waitingPlayers}
+          maxPlayers={state.maxPlayers}
+        />
+      )
 
     case 'game':
       return <GameScreen state={state} onKeyPress={onKeyPress} />
