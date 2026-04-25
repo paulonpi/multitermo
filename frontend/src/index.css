@@ -86,10 +86,10 @@ body {
   animation: type 0.15s ease-out;
 }
 
-/* submitted states — set --color and trigger flip */
-.tile-right { --color: var(--color-right); animation: 0.45s linear flip forwards; }
-.tile-place { --color: var(--color-place); animation: 0.45s linear flip forwards; }
-.tile-wrong { --color: var(--color-wrong); animation: 0.45s linear flip forwards; }
+/* submitted states — separate animations avoid var() inside @keyframes (Android compat) */
+.tile-right { animation: 0.45s linear flip-right forwards; }
+.tile-place { animation: 0.45s linear flip-place forwards; }
+.tile-wrong { animation: 0.45s linear flip-wrong forwards; }
 
 /* ── Row shake ────────────────────────────────────────────────────────────── */
 .row-shake { animation: 0.75s ease-in-out rownope; }
@@ -136,27 +136,23 @@ body {
   100% { transform: translateX(1px);   }
 }
 
-@keyframes flip {
-  0% {
-    background-color: transparent;
-    border: 2px solid var(--color-tile-border);
-    transform: perspective(200px) rotateY(0deg);
-  }
-  49.99% {
-    background-color: transparent;
-    border: 2px solid var(--color-tile-border);
-    transform: perspective(200px) rotateY(90deg);
-  }
-  50% {
-    background-color: var(--color);
-    border: none;
-    transform: perspective(200px) rotateY(-90deg);
-  }
-  100% {
-    background-color: var(--color);
-    border: none;
-    transform: perspective(200px) rotateY(0deg);
-  }
+@keyframes flip-right {
+  0%     { background-color: #615458; border: 2px solid #4c4347; transform: perspective(200px) rotateY(0deg); }
+  49.99% { background-color: #615458; border: 2px solid #4c4347; transform: perspective(200px) rotateY(90deg); }
+  50%    { background-color: #3aa394; border: none;              transform: perspective(200px) rotateY(-90deg); }
+  100%   { background-color: #3aa394; border: none;              transform: perspective(200px) rotateY(0deg); }
+}
+@keyframes flip-place {
+  0%     { background-color: #615458; border: 2px solid #4c4347; transform: perspective(200px) rotateY(0deg); }
+  49.99% { background-color: #615458; border: 2px solid #4c4347; transform: perspective(200px) rotateY(90deg); }
+  50%    { background-color: #d3ad69; border: none;              transform: perspective(200px) rotateY(-90deg); }
+  100%   { background-color: #d3ad69; border: none;              transform: perspective(200px) rotateY(0deg); }
+}
+@keyframes flip-wrong {
+  0%     { background-color: #615458; border: 2px solid #4c4347; transform: perspective(200px) rotateY(0deg); }
+  49.99% { background-color: #615458; border: 2px solid #4c4347; transform: perspective(200px) rotateY(90deg); }
+  50%    { background-color: #312a2c; border: none;              transform: perspective(200px) rotateY(-90deg); }
+  100%   { background-color: #312a2c; border: none;              transform: perspective(200px) rotateY(0deg); }
 }
 
 @keyframes type {
