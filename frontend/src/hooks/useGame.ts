@@ -328,5 +328,9 @@ export function useGame() {
     setState(INITIAL)
   }, [])
 
-  return { state, createRoom, joinRoom, onKeyPress, playAgain, muted, toggleMute }
+  const goToHowToPlay = useCallback((show: boolean) => {
+    setState(s => ({ ...s, screen: show ? 'how_to_play' : 'home' }))
+  }, [])
+
+  return { state, createRoom, joinRoom, onKeyPress, playAgain, muted, toggleMute, goToHowToPlay }
 }

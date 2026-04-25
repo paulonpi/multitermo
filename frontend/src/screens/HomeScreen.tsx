@@ -12,9 +12,10 @@ interface RoomStatus {
 interface HomeScreenProps {
   onCreateRoom: (name: string, maxPlayers: number) => void
   onJoinRoom: (code: string, name: string) => void
+  onHowToPlay: () => void
 }
 
-export function HomeScreen({ onCreateRoom, onJoinRoom }: HomeScreenProps) {
+export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreenProps) {
   const [name, setName] = useState('')
   const [code, setCode] = useState(() => {
     const params = new URLSearchParams(location.search)
@@ -80,9 +81,22 @@ export function HomeScreen({ onCreateRoom, onJoinRoom }: HomeScreenProps) {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-10 p-4">
-      <div className="text-center">
+      <div className="text-center relative">
         <h1 className="text-5xl font-bold tracking-[0.3em] mb-2">TERMO</h1>
         <p className="text-sm tracking-wider" style={{ color: '#8a7880' }}>DUELO EM TEMPO REAL</p>
+        <button
+          type="button"
+          onClick={onHowToPlay}
+          aria-label="Como jogar"
+          style={{
+            position: 'absolute', top: 0, right: -36,
+            background: 'none', border: '1px solid #4c4347', borderRadius: '50%',
+            width: 28, height: 28, cursor: 'pointer', color: '#8a7880',
+            fontSize: '0.8rem', fontWeight: 'bold', lineHeight: 1,
+          }}
+        >
+          ?
+        </button>
       </div>
 
       <form

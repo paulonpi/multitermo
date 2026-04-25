@@ -4,13 +4,17 @@ import { WaitingScreen } from './screens/WaitingScreen'
 import { GameScreen } from './screens/GameScreen'
 import { RoundEndScreen } from './screens/RoundEndScreen'
 import { MatchEndScreen } from './screens/MatchEndScreen'
+import { HowToPlayScreen } from './screens/HowToPlayScreen'
 
 export default function App() {
-  const { state, createRoom, joinRoom, onKeyPress, playAgain, muted, toggleMute } = useGame()
+  const { state, createRoom, joinRoom, onKeyPress, playAgain, muted, toggleMute, goToHowToPlay } = useGame()
 
   switch (state.screen) {
+    case 'how_to_play':
+      return <HowToPlayScreen onBack={() => goToHowToPlay(false)} />
+
     case 'home':
-      return <HomeScreen onCreateRoom={createRoom} onJoinRoom={joinRoom} />
+      return <HomeScreen onCreateRoom={createRoom} onJoinRoom={joinRoom} onHowToPlay={() => goToHowToPlay(true)} />
 
     case 'waiting':
       return (

@@ -26,4 +26,4 @@ export interface MatchEndData {
   scores: Record<string, number>
 }
 
-export type Screen = 'home' | 'waiting' | 'game' | 'round_end' | 'match_end'
+export type Screen = 'home' | 'waiting' | 'game' | 'round_end' | 'match_end' | 'how_to_play'
