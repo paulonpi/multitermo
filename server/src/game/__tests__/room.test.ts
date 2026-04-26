@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Redis } from 'ioredis'
-import { createRoom, joinRoom, getRoom, advanceRound, getPlayerIndex } from '../room'
+import { createRoom, joinRoom, getRoom, advanceRound, getPlayerIndex, getLobbyRooms, transferHost } from '../room'
 
 // Mock the words module so tests don't need the word-list files on disk
 vi.mock('../words', () => ({
@@ -12,11 +12,15 @@ vi.mock('../words', () => ({
 
 function makeRedisMock() {
   const store = new Map<string, string>()
+  const sets = new Map<string, Set<string>>()
   return {
-    get:   vi.fn((key: string)                         => Promise.resolve(store.get(key) ?? null)),
-    set:   vi.fn((key: string, value: string)          => { store.set(key, value); return Promise.resolve('OK' as const) }),
-    setex: vi.fn((key: string, _ttl: number, v: string)=> { store.set(key, v);     return Promise.resolve('OK' as const) }),
-    del:   vi.fn((key: string)                         => { store.delete(key);     return Promise.resolve(1) }),
+    get:      vi.fn((key: string)                          => Promise.resolve(store.get(key) ?? null)),
+    set:      vi.fn((key: string, value: string)           => { store.set(key, value); return Promise.resolve('OK' as const) }),
+    setex:    vi.fn((key: string, _ttl: number, v: string) => { store.set(key, v);     return Promise.resolve('OK' as const) }),
+    del:      vi.fn((key: string)                          => { store.delete(key);     return Promise.resolve(1) }),
+    sadd:     vi.fn((key: string, member: string)          => { if (!sets.has(key)) sets.set(key, new Set()); sets.get(key)!.add(member); return Promise.resolve(1) }),
+    srem:     vi.fn((key: string, member: string)          => { sets.get(key)?.delete(member); return Promise.resolve(1) }),
+    smembers: vi.fn((key: string)                          => Promise.resolve([...(sets.get(key) ?? [])])),
   } as unknown as Redis
 }
 
@@ -54,6 +58,31 @@ describe('createRoom', () => {
     const fetched = await getRoom(redis, room.code)
     expect(fetched).not.toBeNull()
     expect(fetched!.code).toBe(room.code)
+  })
+
+  it('sets isPublic false and hostSocketId by default', async () => {
+    const redis = makeRedisMock()
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
+    expect(room.isPublic).toBe(false)
+    expect(room.hostSocketId).toBe('s1')
+    expect(room.roomName).toBe('')
+  })
+
+  it('creates a public room with roomName and adds to lobby:rooms', async () => {
+    const redis = makeRedisMock()
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3, true, 'Sala da Alice')
+    expect(room.isPublic).toBe(true)
+    expect(room.roomName).toBe('Sala da Alice')
+    expect(room.hostSocketId).toBe('s1')
+    const members = await (redis as any).smembers('lobby:rooms')
+    expect(members).toContain(room.code)
+  })
+
+  it('does not add private room to lobby:rooms', async () => {
+    const redis = makeRedisMock()
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3, false)
+    const members = await (redis as any).smembers('lobby:rooms')
+    expect(members).not.toContain(room.code)
   })
 })
 
@@ -114,6 +143,77 @@ describe('joinRoom', () => {
   })
 })
 
+// ─── getLobbyRooms ────────────────────────────────────────────────────────────
+
+describe('getLobbyRooms', () => {
+  it('returns empty array when no public rooms exist', async () => {
+    const redis = makeRedisMock()
+    expect(await getLobbyRooms(redis)).toEqual([])
+  })
+
+  it('returns public waiting rooms as LobbyRoom list', async () => {
+    const redis = makeRedisMock()
+    const room = await createRoom(redis, 's1', 'Alice', 3, 5, true, 'Sala top')
+    const lobby = await getLobbyRooms(redis)
+    expect(lobby).toHaveLength(1)
+    expect(lobby[0]).toMatchObject({
+      code: room.code,
+      name: 'Sala top',
+      hostName: 'Alice',
+      players: 1,
+      maxPlayers: 3,
+      roundDuration: 5,
+    })
+  })
+
+  it('includes multiple public rooms', async () => {
+    const redis = makeRedisMock()
+    await createRoom(redis, 's1', 'Alice', 2, 3, true, 'Sala A')
+    await createRoom(redis, 's2', 'Bob',   2, 5, true, 'Sala B')
+    const lobby = await getLobbyRooms(redis)
+    expect(lobby).toHaveLength(2)
+  })
+
+  it('excludes private rooms', async () => {
+    const redis = makeRedisMock()
+    await createRoom(redis, 's1', 'Alice', 2, 3, false)
+    const lobby = await getLobbyRooms(redis)
+    expect(lobby).toHaveLength(0)
+  })
+
+  it('skips stale codes whose room no longer exists in Redis', async () => {
+    const redis = makeRedisMock()
+    // manually add a stale code to the set
+    await (redis as any).sadd('lobby:rooms', 'DEAD')
+    const lobby = await getLobbyRooms(redis)
+    expect(lobby).toHaveLength(0)
+  })
+})
+
+// ─── transferHost ─────────────────────────────────────────────────────────────
+
+describe('transferHost', () => {
+  it('sets hostSocketId to the first remaining player', () => {
+    const room = {
+      hostSocketId: 's1',
+      players: [
+        { socketId: 's2', name: 'Bob',   score: 0 },
+        { socketId: 's3', name: 'Carol', score: 0 },
+      ],
+    } as any
+
+    transferHost(room)
+
+    expect(room.hostSocketId).toBe('s2')
+  })
+
+  it('does nothing when no players remain', () => {
+    const room = { hostSocketId: 's1', players: [] } as any
+    transferHost(room)
+    expect(room.hostSocketId).toBe('s1')
+  })
+})
+
 // ─── advanceRound ─────────────────────────────────────────────────────────────
 
 describe('advanceRound', () => {
@@ -148,7 +248,6 @@ describe('advanceRound', () => {
 
     advanceRound(room)
 
-    // pickRandomWord is mocked to return 'arroz'
     expect(room.currentWord).toBe('arroz')
   })
 

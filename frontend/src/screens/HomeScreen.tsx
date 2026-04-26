@@ -10,12 +10,13 @@ interface RoomStatus {
 }
 
 interface HomeScreenProps {
-  onCreateRoom: (name: string, maxPlayers: number, roundDuration: number) => void
+  onCreateRoom: (name: string) => void
+  onOpenLobby: (name: string) => void
   onJoinRoom: (code: string, name: string) => void
   onHowToPlay: () => void
 }
 
-export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreenProps) {
+export function HomeScreen({ onCreateRoom, onOpenLobby, onJoinRoom, onHowToPlay }: HomeScreenProps) {
   const [name, setName] = useState('')
   const [code, setCode] = useState(() => {
     const params = new URLSearchParams(location.search)
@@ -25,11 +26,8 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
     const params = new URLSearchParams(location.search)
     return params.get('room') ? 'join' : 'idle'
   })
-  const [playerCount, setPlayerCount] = useState(2)
-  const [roundDuration, setRoundDuration] = useState(3)
   const [roomStatus, setRoomStatus] = useState<RoomStatus | 'loading' | null>(null)
 
-  // Auto-check room status when code is complete
   useEffect(() => {
     if (mode !== 'join' || code.length < 4) {
       setRoomStatus(null)
@@ -40,14 +38,9 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
     fetch(`${SERVER_URL}/room/${code}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => setRoomStatus(data as RoomStatus))
-      .catch(() => {/* aborted or network error — stay null */})
+      .catch(() => {})
     return () => controller.abort()
   }, [code, mode])
-
-  const handleCreate = (e: FormEvent) => {
-    e.preventDefault()
-    if (name.trim()) onCreateRoom(name.trim(), playerCount, roundDuration)
-  }
 
   const handleJoin = (e: FormEvent) => {
     e.preventDefault()
@@ -100,69 +93,34 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
         </button>
       </div>
 
-      <form
-        onSubmit={mode === 'join' ? handleJoin : handleCreate}
-        className="flex flex-col gap-3 w-full max-w-xs"
-      >
+      <div className="flex flex-col gap-3 w-full max-w-xs">
         <input
           type="text"
           placeholder="Seu nome"
           value={name}
           onChange={e => setName(e.target.value)}
           maxLength={20}
-          required
           className="game-input"
         />
 
         {mode === 'idle' && (
           <>
-            <div className="flex flex-col gap-1">
-              <p className="text-xs uppercase tracking-widest text-center" style={{ color: '#8a7880' }}>
-                Número de jogadores
-              </p>
-              <div className="flex gap-2">
-                {[2, 3, 4].map(n => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setPlayerCount(n)}
-                    className={playerCount === n ? 'btn-primary' : 'btn-outline'}
-                    style={{ flex: 1, padding: '0.5rem' }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <p className="text-xs uppercase tracking-widest text-center" style={{ color: '#8a7880' }}>
-                Tempo por rodada
-              </p>
-              <div className="flex gap-1 flex-wrap justify-center">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setRoundDuration(n)}
-                    className={roundDuration === n ? 'btn-primary' : 'btn-outline'}
-                    style={{ width: '2.4rem', padding: '0.5rem 0', fontSize: '0.8rem' }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-center" style={{ color: '#8a7880' }}>
-                {roundDuration} {roundDuration === 1 ? 'minuto' : 'minutos'} por rodada
-              </p>
-            </div>
-
             <button
-              type="submit"
+              type="button"
               disabled={!name.trim()}
+              onClick={() => onCreateRoom(name.trim())}
               className="btn-primary"
             >
               Criar Sala
+            </button>
+
+            <button
+              type="button"
+              disabled={!name.trim()}
+              onClick={() => onOpenLobby(name.trim())}
+              className="btn-outline"
+            >
+              Salas Públicas
             </button>
 
             <div className="flex items-center gap-3 my-1" style={{ color: '#4c4347' }}>
@@ -182,7 +140,7 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
         )}
 
         {mode === 'join' && (
-          <>
+          <form onSubmit={handleJoin} className="flex flex-col gap-3">
             <input
               type="text"
               placeholder="CÓDIGO"
@@ -208,9 +166,9 @@ export function HomeScreen({ onCreateRoom, onJoinRoom, onHowToPlay }: HomeScreen
             >
               ← Voltar
             </button>
-          </>
+          </form>
         )}
-      </form>
+      </div>
     </div>
   )
 }

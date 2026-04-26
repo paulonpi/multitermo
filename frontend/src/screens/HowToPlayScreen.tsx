@@ -106,6 +106,19 @@ export function HowToPlayScreen({ onBack }: HowToPlayScreenProps) {
         </div>
       </Section>
 
+      <Section title="Salas">
+        <div className="flex flex-col gap-2 text-sm" style={{ color: '#c4b5b9' }}>
+          <p><strong style={{ color: '#e0d0d4' }}>Sala privada:</strong> crie uma sala e compartilhe o código de 4 letras com seus adversários.</p>
+          <p><strong style={{ color: '#e0d0d4' }}>Sala pública:</strong> crie uma sala com nome e ela aparece na lista de <em>Salas Públicas</em> para qualquer jogador entrar.</p>
+          <p><strong style={{ color: '#e0d0d4' }}>Salas Públicas:</strong> veja as salas abertas em tempo real e entre em uma com um clique.</p>
+        </div>
+        <div className="flex flex-col gap-1 pt-1" style={{ color: '#8a7880', fontSize: '0.75rem' }}>
+          <p>• A partida começa automaticamente quando a sala enche</p>
+          <p>• O host pode excluir a sala enquanto aguarda jogadores</p>
+          <p>• Se o host sair, o próximo jogador vira host automaticamente</p>
+        </div>
+      </Section>
+
       <Section title="A competição">
         <p className="text-sm leading-relaxed" style={{ color: '#c4b5b9' }}>
           Você vê o progresso do adversário em tempo real — quantas tentativas ele fez e o

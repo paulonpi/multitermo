@@ -20,10 +20,22 @@ export interface Room {
   status: RoomStatus
   maxPlayers: number
   roundDuration: number  // minutes, 1–10
+  isPublic: boolean
+  roomName: string
+  hostSocketId: string
   players: Player[]
   currentRound: number
   totalRounds: number
   currentWord: string
   currentWordDisplay: string
   roundStates: PlayerRoundState[]
+}
+
+export interface LobbyRoom {
+  code: string
+  name: string
+  hostName: string
+  players: number
+  maxPlayers: number
+  roundDuration: number
 }

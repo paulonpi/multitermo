@@ -26,4 +26,13 @@ export interface MatchEndData {
   scores: Record<string, number>
 }
 
-export type Screen = 'home' | 'waiting' | 'game' | 'round_end' | 'match_end' | 'how_to_play'
+export type Screen = 'home' | 'lobby' | 'create_room' | 'waiting' | 'game' | 'round_end' | 'match_end' | 'how_to_play'
+
+export interface LobbyRoom {
+  code: string
+  name: string
+  hostName: string
+  players: number
+  maxPlayers: number
+  roundDuration: number
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getSocket } from '../socket'
 import { useSounds } from '../audio/useSounds'
-import type { TileState, PlayerInfo, RoundEndData, MatchEndData, Screen } from '../types'
+import type { TileState, PlayerInfo, RoundEndData, MatchEndData, Screen, LobbyRoom } from '../types'
 
 export interface OpponentAttempt {
   result: TileState[]
@@ -11,6 +11,9 @@ export interface GameState {
   screen: Screen
   roomCode: string
   myName: string
+  isHost: boolean
+  isPublic: boolean
+  roomName: string
   players: PlayerInfo[]
   maxPlayers: number
   waitingPlayers: PlayerInfo[]
@@ -29,6 +32,7 @@ export interface GameState {
   matchEndData: MatchEndData | null
   timeLeft: number      // seconds; -1 = no active timer
   roundDuration: number // minutes, for adaptive tick thresholds
+  lobbyRooms: LobbyRoom[]
 }
 
 const EMPTY_LETTERS = ['', '', '', '', '']
@@ -37,6 +41,9 @@ const INITIAL: GameState = {
   screen: 'home',
   roomCode: '',
   myName: '',
+  isHost: false,
+  isPublic: false,
+  roomName: '',
   players: [],
   maxPlayers: 2,
   waitingPlayers: [],
@@ -55,6 +62,7 @@ const INITIAL: GameState = {
   matchEndData: null,
   timeLeft: -1,
   roundDuration: 3,
+  lobbyRooms: [],
 }
 
 function resetInput() {
@@ -103,37 +111,60 @@ export function useGame() {
 
     socket.on('connect', () => {
       if (hasConnectedRef.current) {
-        // Reconnect after network dropout — room is gone on the server, reset to home
         setState(s => s.screen !== 'home' ? { ...INITIAL, toast: 'Conexão perdida. Tente novamente.' } : s)
         setTimeout(() => setState(s => ({ ...s, toast: null })), 3000)
       }
       hasConnectedRef.current = true
     })
 
-    socket.on('room_created', ({ code, maxPlayers, roundDuration }: { code: string; maxPlayers: number; roundDuration: number }) => {
+    socket.on('room_created', ({ code, maxPlayers, roundDuration, isPublic, roomName, isHost }: {
+      code: string; maxPlayers: number; roundDuration: number; isPublic: boolean; roomName: string; isHost: boolean
+    }) => {
       setState(s => ({
         ...s,
         screen: 'waiting',
         roomCode: code,
         maxPlayers,
         roundDuration,
+        isPublic,
+        roomName,
+        isHost,
         waitingPlayers: [{ name: s.myName, score: 0 }],
       }))
     })
 
-    socket.on('room_joined', ({ code, maxPlayers, roundDuration, players }: { code: string; maxPlayers: number; roundDuration: number; players: PlayerInfo[] }) => {
+    socket.on('room_joined', ({ code, maxPlayers, roundDuration, isPublic, roomName, isHost, players }: {
+      code: string; maxPlayers: number; roundDuration: number; isPublic: boolean; roomName: string; isHost: boolean; players: PlayerInfo[]
+    }) => {
       setState(s => ({
         ...s,
         screen: 'waiting',
         roomCode: code,
         maxPlayers,
         roundDuration,
+        isPublic,
+        roomName,
+        isHost,
         waitingPlayers: players,
       }))
     })
 
     socket.on('player_joined', ({ players, maxPlayers }: { players: PlayerInfo[]; maxPlayers: number }) => {
       setState(s => ({ ...s, waitingPlayers: players, maxPlayers }))
+    })
+
+    socket.on('host_changed', ({ hostName }: { hostName: string }) => {
+      setState(s => ({ ...s, isHost: s.myName === hostName }))
+    })
+
+    socket.on('lobby_update', (rooms: LobbyRoom[]) => {
+      setState(s => ({ ...s, lobbyRooms: rooms }))
+    })
+
+    socket.on('room_deleted', () => {
+      getSocket().disconnect()
+      setState({ ...INITIAL, toast: 'Sala excluída pelo host.' })
+      setTimeout(() => setState(s => ({ ...s, toast: null })), 3000)
     })
 
     socket.on('game_start', ({ players }: { players: PlayerInfo[] }) => {
@@ -250,6 +281,9 @@ export function useGame() {
       socket.off('room_created')
       socket.off('room_joined')
       socket.off('player_joined')
+      socket.off('host_changed')
+      socket.off('lobby_update')
+      socket.off('room_deleted')
       socket.off('game_start')
       socket.off('round_start')
       socket.off('guess_result')
@@ -262,10 +296,10 @@ export function useGame() {
     }
   }, [])
 
-  const createRoom = useCallback((playerName: string, maxPlayers: number, roundDuration: number) => {
+  const createRoom = useCallback((playerName: string, maxPlayers: number, roundDuration: number, isPublic: boolean, roomName: string) => {
     setState(s => ({ ...s, myName: playerName }))
     getSocket().connect()
-    getSocket().emit('create_room', { playerName, maxPlayers, roundDuration })
+    getSocket().emit('create_room', { playerName, maxPlayers, roundDuration, isPublic, roomName })
   }, [])
 
   const joinRoom = useCallback((code: string, playerName: string) => {
@@ -273,6 +307,25 @@ export function useGame() {
     getSocket().connect()
     getSocket().emit('join_room', { code, playerName })
     history.replaceState(null, '', location.pathname)
+  }, [])
+
+  const openLobby = useCallback((playerName: string) => {
+    setState(s => ({ ...s, myName: playerName, screen: 'lobby', lobbyRooms: [] }))
+    getSocket().connect()
+    getSocket().emit('browse_lobby')
+  }, [])
+
+  const leaveLobby = useCallback(() => {
+    getSocket().emit('leave_lobby')
+    setState(s => ({ ...s, screen: 'home' }))
+  }, [])
+
+  const deleteRoom = useCallback(() => {
+    getSocket().emit('delete_room')
+  }, [])
+
+  const goToCreateRoom = useCallback((playerName: string) => {
+    setState(s => ({ ...s, myName: playerName, screen: 'create_room' }))
   }, [])
 
   const onKeyPress = useCallback((key: string) => {
@@ -339,5 +392,18 @@ export function useGame() {
     setState(s => ({ ...s, screen: show ? 'how_to_play' : 'home' }))
   }, [])
 
-  return { state, createRoom, joinRoom, onKeyPress, playAgain, muted, toggleMute, goToHowToPlay }
+  return {
+    state,
+    createRoom,
+    joinRoom,
+    openLobby,
+    leaveLobby,
+    deleteRoom,
+    goToCreateRoom,
+    onKeyPress,
+    playAgain,
+    muted,
+    toggleMute,
+    goToHowToPlay,
+  }
 }

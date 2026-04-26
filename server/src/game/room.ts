@@ -1,10 +1,11 @@
 import { Redis } from 'ioredis'
-import { Room, Player, PlayerRoundState } from '../types'
+import { Room, Player, PlayerRoundState, LobbyRoom } from '../types'
 import { pickRandomWord, getDisplayWord } from './words'
 
 const ROOM_TTL = 3600
 const TOTAL_ROUNDS = 5
 const CONSONANTS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+const LOBBY_KEY = 'lobby:rooms'
 
 function roomKey(code: string) { return `room:${code}` }
 function socketKey(socketId: string) { return `socket:${socketId}` }
@@ -20,7 +21,15 @@ function generateCode(): string {
   ).join('')
 }
 
-export async function createRoom(redis: Redis, socketId: string, playerName: string, maxPlayers: number, roundDuration: number): Promise<Room> {
+export async function createRoom(
+  redis: Redis,
+  socketId: string,
+  playerName: string,
+  maxPlayers: number,
+  roundDuration: number,
+  isPublic = false,
+  roomName = '',
+): Promise<Room> {
   const code = generateCode()
   const player: Player = { socketId, name: playerName, score: 0 }
   const room: Room = {
@@ -28,6 +37,9 @@ export async function createRoom(redis: Redis, socketId: string, playerName: str
     status: 'waiting',
     maxPlayers,
     roundDuration,
+    isPublic,
+    roomName,
+    hostSocketId: socketId,
     players: [player],
     currentRound: 1,
     totalRounds: TOTAL_ROUNDS,
@@ -36,6 +48,7 @@ export async function createRoom(redis: Redis, socketId: string, playerName: str
     roundStates: [emptyRoundState()],
   }
   await saveRoom(redis, room)
+  if (isPublic) await redis.sadd(LOBBY_KEY, code)
   return room
 }
 
@@ -59,6 +72,38 @@ export async function joinRoom(
 
   await saveRoom(redis, room)
   return room
+}
+
+export async function deleteRoom(redis: Redis, code: string): Promise<void> {
+  await redis.del(roomKey(code))
+  await redis.srem(LOBBY_KEY, code)
+}
+
+export async function removeFromLobby(redis: Redis, code: string): Promise<void> {
+  await redis.srem(LOBBY_KEY, code)
+}
+
+export async function getLobbyRooms(redis: Redis): Promise<LobbyRoom[]> {
+  const codes = await redis.smembers(LOBBY_KEY)
+  const results: LobbyRoom[] = []
+  for (const code of codes) {
+    const room = await getRoom(redis, code)
+    if (!room || room.status !== 'waiting') continue
+    results.push({
+      code: room.code,
+      name: room.roomName,
+      hostName: room.players.find(p => p.socketId === room.hostSocketId)?.name ?? room.players[0]?.name ?? '',
+      players: room.players.length,
+      maxPlayers: room.maxPlayers,
+      roundDuration: room.roundDuration,
+    })
+  }
+  return results
+}
+
+export function transferHost(room: Room): void {
+  if (room.players.length === 0) return
+  room.hostSocketId = room.players[0].socketId
 }
 
 export async function getRoom(redis: Redis, code: string): Promise<Room | null> {

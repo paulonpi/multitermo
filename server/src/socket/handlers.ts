@@ -6,6 +6,7 @@ import {
   createRoom, joinRoom, getRoom, saveRoom,
   getRoomBySocketId, setSocketRoom, removeSocketRoom,
   getPlayerIndex, advanceRound,
+  deleteRoom, removeFromLobby, getLobbyRooms, transferHost,
 } from '../game/room'
 import { Room } from '../types'
 
@@ -52,24 +53,51 @@ function scheduleRoundTimeout(io: Server, redis: Redis, room: Room, roundEndTime
   roomTimers.set(room.code, t)
 }
 
+async function broadcastLobbyUpdate(io: Server, redis: Redis) {
+  const rooms = await getLobbyRooms(redis)
+  io.to('lobby').emit('lobby_update', rooms)
+}
+
 export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
-  socket.on('create_room', async (data: { playerName: string; maxPlayers?: number; roundDuration?: number }) => {
+
+  socket.on('create_room', async (data: {
+    playerName: string
+    maxPlayers?: number
+    roundDuration?: number
+    isPublic?: boolean
+    roomName?: string
+  }) => {
     try {
       const playerName = (data?.playerName ?? '').trim().slice(0, 20)
       if (!playerName) { socket.emit('error', { message: 'Nome inválido.' }); return }
 
       const maxPlayers = Math.min(4, Math.max(2, Math.floor(data?.maxPlayers ?? 2)))
       const roundDuration = Math.min(10, Math.max(1, Math.round(data?.roundDuration ?? DEFAULT_ROUND_DURATION)))
+      const isPublic = data?.isPublic === true
+      const roomName = (data?.roomName ?? '').trim().slice(0, 30)
+
+      if (isPublic && !roomName) { socket.emit('error', { message: 'Nome da sala obrigatório.' }); return }
 
       // Leave any previous room so stale socket.io room membership doesn't linger
       const prevCode = await redis.get(`socket:${socket.id}`)
       if (prevCode) socket.leave(prevCode)
 
-      const room = await createRoom(redis, socket.id, playerName, maxPlayers, roundDuration)
+      socket.leave('lobby')
+
+      const room = await createRoom(redis, socket.id, playerName, maxPlayers, roundDuration, isPublic, roomName)
       await setSocketRoom(redis, socket.id, room.code)
       socket.join(room.code)
 
-      socket.emit('room_created', { code: room.code, maxPlayers: room.maxPlayers, roundDuration: room.roundDuration })
+      socket.emit('room_created', {
+        code: room.code,
+        maxPlayers: room.maxPlayers,
+        roundDuration: room.roundDuration,
+        isPublic: room.isPublic,
+        roomName: room.roomName,
+        isHost: true,
+      })
+
+      if (isPublic) await broadcastLobbyUpdate(io, redis)
     } catch (err) {
       console.error('create_room error:', err)
       socket.emit('error', { message: 'Erro ao criar sala.' })
@@ -96,7 +124,8 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
         return
       }
 
-      // Leave any previous room
+      // Leave lobby channel and any previous room
+      socket.leave('lobby')
       const prevCode = await redis.get(`socket:${socket.id}`)
       if (prevCode && prevCode !== room.code) socket.leave(prevCode)
 
@@ -106,7 +135,10 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       const playerList = room.players.map(p => ({ name: p.name, score: p.score }))
 
       if (room.status === 'playing') {
-        // Room is now full — start the game
+        // Room is now full — remove from lobby and start game
+        if (room.isPublic) await removeFromLobby(redis, room.code)
+        if (room.isPublic) await broadcastLobbyUpdate(io, redis)
+
         io.to(room.code).emit('game_start', { players: playerList })
 
         setTimeout(() => {
@@ -114,11 +146,16 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
           scheduleRoundTimeout(io, redis, room, roundEndTime)
         }, 1000)
       } else {
-        // Room still waiting for more players
+        // Room still waiting for more players — update lobby count
+        if (room.isPublic) await broadcastLobbyUpdate(io, redis)
+
         socket.emit('room_joined', {
           code: room.code,
           maxPlayers: room.maxPlayers,
           roundDuration: room.roundDuration,
+          isPublic: room.isPublic,
+          roomName: room.roomName,
+          isHost: false,
           players: playerList,
         })
         socket.to(room.code).emit('player_joined', {
@@ -129,6 +166,40 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
     } catch (err) {
       console.error('join_room error:', err)
       socket.emit('error', { message: 'Erro ao entrar na sala.' })
+    }
+  })
+
+  socket.on('browse_lobby', async () => {
+    try {
+      socket.join('lobby')
+      const rooms = await getLobbyRooms(redis)
+      socket.emit('lobby_update', rooms)
+    } catch (err) {
+      console.error('browse_lobby error:', err)
+    }
+  })
+
+  socket.on('leave_lobby', () => {
+    socket.leave('lobby')
+  })
+
+  socket.on('delete_room', async () => {
+    try {
+      const room = await getRoomBySocketId(redis, socket.id)
+      if (!room) return
+      if (room.hostSocketId !== socket.id) return
+      if (room.status !== 'waiting') return
+
+      await deleteRoom(redis, room.code)
+      await removeSocketRoom(redis, socket.id)
+
+      // Notify all players in the room (besides host)
+      socket.to(room.code).emit('room_deleted')
+      socket.leave(room.code)
+
+      if (room.isPublic) await broadcastLobbyUpdate(io, redis)
+    } catch (err) {
+      console.error('delete_room error:', err)
     }
   })
 
@@ -208,15 +279,24 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       if (playerIdx === -1) return
 
       const disconnectedName = room.players[playerIdx].name
+      const wasHost = room.hostSocketId === socket.id
       const wasPlaying = room.status === 'playing'
 
       room.players.splice(playerIdx, 1)
       room.roundStates.splice(playerIdx, 1)
 
       if (room.players.length === 0) {
-        room.status = 'finished'
-        await saveRoom(redis, room)
+        await deleteRoom(redis, room.code)
+        if (room.isPublic) await broadcastLobbyUpdate(io, redis)
         return
+      }
+
+      // Transfer host if the disconnected player was host
+      if (wasHost && !wasPlaying) {
+        transferHost(room)
+        io.to(room.code).emit('host_changed', {
+          hostName: room.players.find(p => p.socketId === room.hostSocketId)?.name ?? '',
+        })
       }
 
       const remainingPlayers = room.players.map(p => ({ name: p.name, score: p.score }))
@@ -224,9 +304,12 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       if (room.players.length === 1) {
         room.status = 'finished'
         await saveRoom(redis, room)
+        if (room.isPublic) {
+          await removeFromLobby(redis, room.code)
+          await broadcastLobbyUpdate(io, redis)
+        }
 
         const winner = room.players[0]
-        // Notify last player, then end match
         io.to(winner.socketId).emit('player_left', {
           playerName: disconnectedName,
           players: remainingPlayers,
@@ -242,7 +325,9 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
         return
       }
 
-      // 2+ players remain — continue game
+      // 2+ players remain — continue
+      if (room.isPublic && !wasPlaying) await broadcastLobbyUpdate(io, redis)
+
       for (const p of room.players) {
         io.to(p.socketId).emit('player_left', {
           playerName: disconnectedName,

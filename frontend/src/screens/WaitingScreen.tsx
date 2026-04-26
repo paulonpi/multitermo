@@ -7,10 +7,18 @@ interface WaitingScreenProps {
   players: PlayerInfo[]
   maxPlayers: number
   roundDuration: number
+  isPublic: boolean
+  roomName: string
+  isHost: boolean
+  onDeleteRoom: () => void
 }
 
-export function WaitingScreen({ code, playerName, players, maxPlayers, roundDuration }: WaitingScreenProps) {
+export function WaitingScreen({
+  code, playerName, players, maxPlayers, roundDuration,
+  isPublic, roomName, isHost, onDeleteRoom,
+}: WaitingScreenProps) {
   const [copied, setCopied] = useState<'code' | 'link' | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   const copyCode = () => {
     navigator.clipboard.writeText(code).catch(() => {})
@@ -25,12 +33,23 @@ export function WaitingScreen({ code, playerName, players, maxPlayers, roundDura
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const handleDeleteClick = () => {
+    if (!confirming) { setConfirming(true); return }
+    onDeleteRoom()
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-8 p-4">
       <h1 className="text-4xl font-bold tracking-[0.3em]">TERMO</h1>
 
+      {isPublic && roomName && (
+        <p className="text-base font-semibold" style={{ color: '#c4b5b9' }}>{roomName}</p>
+      )}
+
       <div className="text-center">
-        <p className="text-sm mb-5" style={{ color: '#8a7880' }}>Compartilhe com os adversários</p>
+        <p className="text-sm mb-5" style={{ color: '#8a7880' }}>
+          {isPublic ? 'Compartilhe com os adversários' : 'Compartilhe com os adversários'}
+        </p>
         <div className="flex items-center justify-center gap-3 mb-4">
           <span className="text-5xl sm:text-6xl font-bold tracking-[0.35em]">{code}</span>
         </div>
@@ -75,6 +94,21 @@ export function WaitingScreen({ code, playerName, players, maxPlayers, roundDura
         />
         <span className="text-sm">Aguardando jogadores...</span>
       </div>
+
+      {isHost && (
+        <button
+          onClick={handleDeleteClick}
+          onBlur={() => setConfirming(false)}
+          className="text-sm"
+          style={{
+            background: 'none', border: '1px solid #5a3038', borderRadius: '0.375rem',
+            color: confirming ? '#c97070' : '#8a7880', cursor: 'pointer',
+            padding: '0.375rem 1rem',
+          }}
+        >
+          {confirming ? 'Confirmar exclusão?' : 'Excluir sala'}
+        </button>
+      )}
     </div>
   )
 }
