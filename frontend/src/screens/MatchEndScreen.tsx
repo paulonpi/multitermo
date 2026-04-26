@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import type { MatchEndData, PlayerInfo } from '../types'
+import { encodePayload, buildShareText } from '../utils/share'
+import type { SharePayload } from '../utils/share'
 
 interface MatchEndScreenProps {
   data: MatchEndData
@@ -8,6 +11,7 @@ interface MatchEndScreenProps {
 }
 
 export function MatchEndScreen({ data, myName, players, onPlayAgain }: MatchEndScreenProps) {
+  const [shareLabel, setShareLabel] = useState<string | null>(null)
   const { winnerName, scores } = data
 
   const resultMessage =
@@ -21,6 +25,33 @@ export function MatchEndScreen({ data, myName, players, onPlayAgain }: MatchEndS
     '#8a7880'
 
   const maxScore = Math.max(...players.map(p => scores[p.name] ?? 0))
+  const totalRounds = maxScore > 0 ? Math.max(...Object.values(scores)) + Math.min(...Object.values(scores)) : 5
+
+  const canShare = winnerName === myName || winnerName === null
+
+  const handleShare = async () => {
+    const sorted = [...players]
+      .map(p => ({ n: p.name, r: scores[p.name] ?? 0 }))
+      .sort((a, b) => b.r - a.r)
+    const payload: SharePayload = { w: winnerName, s: sorted, t: totalRounds }
+    const encoded = encodePayload(payload)
+    const baseUrl = `${location.origin}`
+    const shareUrl = `${baseUrl}/share?d=${encoded}`
+    const text = buildShareText(payload, shareUrl)
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Termo Multiplayer', text, url: shareUrl })
+        return
+      } catch {
+        // fall through to clipboard
+      }
+    }
+
+    navigator.clipboard.writeText(shareUrl).catch(() => {})
+    setShareLabel('Link copiado!')
+    setTimeout(() => setShareLabel(null), 2000)
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-10 p-4">
@@ -52,9 +83,20 @@ export function MatchEndScreen({ data, myName, players, onPlayAgain }: MatchEndS
         })}
       </div>
 
-      <button onClick={onPlayAgain} className="btn-primary" style={{ width: 'auto', padding: '0.75rem 2rem' }}>
-        Jogar Novamente
-      </button>
+      <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+        {canShare && (
+          <button
+            onClick={handleShare}
+            className="btn-outline w-full"
+            style={{ fontSize: '0.875rem' }}
+          >
+            {shareLabel ?? 'Compartilhar resultado'}
+          </button>
+        )}
+        <button onClick={onPlayAgain} className="btn-primary w-full">
+          Jogar Novamente
+        </button>
+      </div>
     </div>
   )
 }

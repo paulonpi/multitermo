@@ -3,6 +3,9 @@
 # que é o único Caddy rodando na VPS.
 
 multitermo.vitreon.tech {
+    handle /share* {
+        reverse_proxy termo-server:3001
+    }
     handle /socket.io/* {
         reverse_proxy termo-server:3001
     }

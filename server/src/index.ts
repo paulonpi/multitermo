@@ -4,6 +4,7 @@ import { Server } from 'socket.io'
 import cors from 'cors'
 import Redis from 'ioredis'
 import { registerHandlers } from './socket/handlers'
+import { shareHandler } from './routes/share'
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10)
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? 'http://localhost:5173'
@@ -17,6 +18,8 @@ const app = express()
 app.use(cors({ origin: CORS_ORIGIN }))
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
+
+app.get('/share', shareHandler)
 
 app.get('/room/:code', async (req, res) => {
   try {
