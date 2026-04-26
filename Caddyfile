@@ -6,6 +6,12 @@ multitermo.vitreon.tech {
     handle /share* {
         reverse_proxy termo-server:3001
     }
+    handle /room/* {
+        reverse_proxy termo-server:3001
+    }
+    handle /health {
+        reverse_proxy termo-server:3001
+    }
     handle /socket.io/* {
         reverse_proxy termo-server:3001
     }

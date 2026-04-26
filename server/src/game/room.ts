@@ -61,6 +61,7 @@ export async function joinRoom(
 ): Promise<Room | null> {
   const room = await getRoom(redis, code)
   if (!room || room.status !== 'waiting' || room.players.length >= room.maxPlayers) return null
+  if (room.players.some(p => p.name.toLowerCase() === playerName.toLowerCase())) return null
 
   room.players.push({ socketId, name: playerName, score: 0 })
   room.roundStates.push(emptyRoundState())
@@ -89,7 +90,10 @@ export async function getLobbyRooms(redis: Redis): Promise<LobbyRoom[]> {
   const results: LobbyRoom[] = []
   for (const code of codes) {
     const room = await getRoom(redis, code)
-    if (!room || room.status !== 'waiting') continue
+    if (!room || room.status !== 'waiting') {
+      await redis.srem(LOBBY_KEY, code)  // remove stale entry
+      continue
+    }
     results.push({
       code: room.code,
       name: room.roomName,

@@ -79,7 +79,7 @@ function RoundHistoryItem({ entry, myName, players }: { entry: RoundHistoryEntry
 
 export function MatchEndScreen({ data, myName, players, onPlayAgain }: MatchEndScreenProps) {
   const [shareLabel, setShareLabel] = useState<string | null>(null)
-  const { winnerName, scores, rounds } = data
+  const { winnerName, scores, rounds = [] } = data
 
   const resultMessage =
     winnerName === myName ? 'Você venceu o duelo!' :

@@ -263,14 +263,6 @@ export function useGame() {
       setTimeout(() => setState(s => ({ ...s, toast: null })), 3000)
     })
 
-    socket.on('opponent_disconnected', () => {
-      setState(s => ({ ...s, toast: 'Adversário desconectou.' }))
-      setTimeout(() => {
-        getSocket().disconnect()
-        setState(INITIAL)
-      }, 3000)
-    })
-
     socket.on('error', ({ message }: { message: string }) => {
       setState(s => ({ ...s, toast: message }))
       setTimeout(() => setState(s => ({ ...s, toast: null })), 2000)
@@ -291,7 +283,6 @@ export function useGame() {
       socket.off('round_end')
       socket.off('match_end')
       socket.off('player_left')
-      socket.off('opponent_disconnected')
       socket.off('error')
     }
   }, [])
@@ -385,6 +376,7 @@ export function useGame() {
   }, [])
 
   const playAgain = useCallback(() => {
+    getSocket().disconnect()
     setState(INITIAL)
   }, [])
 

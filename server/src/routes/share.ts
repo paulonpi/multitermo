@@ -1,5 +1,8 @@
 import type { Request, Response } from 'express'
 
+// S-1: Use PUBLIC_URL env var to avoid Host header injection
+const PUBLIC_URL = (process.env.PUBLIC_URL ?? process.env.CORS_ORIGIN ?? '').replace(/\/$/, '')
+
 export interface SharePayload {
   w: string | null
   s: { n: string; r: number }[]
@@ -13,6 +16,12 @@ export function decodePayload(encoded: string): SharePayload | null {
     const p = JSON.parse(json)
     if (typeof p !== 'object' || p === null) return null
     if (!('w' in p) || !Array.isArray(p.s) || typeof p.t !== 'number') return null
+    // S-4: validate each score entry has correct types
+    if (!p.s.every((e: unknown) =>
+      typeof e === 'object' && e !== null &&
+      typeof (e as any).n === 'string' &&
+      typeof (e as any).r === 'number'
+    )) return null
     return p as SharePayload
   } catch {
     return null
@@ -52,7 +61,8 @@ export function renderShareHtml(payload: SharePayload, shareUrl: string): string
   const rows = payload.s
     .map((entry, i) => {
       const medal = payload.w === null ? '🥇' : i === 0 ? '🥇' : `${i + 1}º`
-      return `<p style="margin:0.25rem 0;font-size:1.1rem;color:#c4b5b9;">${medal} ${escapeHtml(entry.n)} — ${entry.r}/${payload.t}</p>`
+      // S-4: escapeHtml on both n and r.toString() to prevent XSS
+      return `<p style="margin:0.25rem 0;font-size:1.1rem;color:#c4b5b9;">${medal} ${escapeHtml(entry.n)} — ${escapeHtml(String(entry.r))}/${escapeHtml(String(payload.t))}</p>`
     })
     .join('\n')
 
@@ -96,7 +106,9 @@ export function shareHandler(req: Request, res: Response): void {
     res.redirect('/')
     return
   }
-  const shareUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`
+  // S-1: prefer configured PUBLIC_URL; fall back to request-derived URL only for local dev
+  const base = PUBLIC_URL || `${req.protocol}://${req.hostname}`
+  const shareUrl = `${base}${req.path}?d=${encodeURIComponent(encoded)}`
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.send(renderShareHtml(payload, shareUrl))
 }

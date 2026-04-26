@@ -24,6 +24,7 @@ app.get('/share', shareHandler)
 app.get('/room/:code', async (req, res) => {
   try {
     const code = req.params.code.toUpperCase().trim()
+    if (!/^[A-Z]{4}$/.test(code)) { res.json({ exists: false }); return }
     const data = await redis.get(`room:${code}`)
     if (!data) { res.json({ exists: false }); return }
     const room = JSON.parse(data) as { status: string; players: unknown[]; maxPlayers: number }

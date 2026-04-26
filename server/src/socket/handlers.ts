@@ -109,10 +109,10 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       const playerName = (data?.playerName ?? '').trim().slice(0, 20)
       const code = (data?.code ?? '').toUpperCase().trim()
       if (!playerName) { socket.emit('error', { message: 'Nome inválido.' }); return }
-      if (!code) { socket.emit('error', { message: 'Código inválido.' }); return }
+      if (!/^[A-Z]{4}$/.test(code)) { socket.emit('error', { message: 'Código inválido.' }); return }
 
-      // Prevent duplicate names in the same room
-      const existing = await getRoom(redis, code.toUpperCase())
+      // Pre-check for duplicate name (better error message); joinRoom re-checks atomically
+      const existing = await getRoom(redis, code)
       if (existing && existing.players.some(p => p.name.toLowerCase() === playerName.toLowerCase())) {
         socket.emit('error', { message: 'Já existe um jogador com esse nome nesta sala.' })
         return
@@ -217,12 +217,24 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       const roundState = room.roundStates[playerIdx]
       if (roundState.done) { socket.emit('error', { message: 'Você já terminou esta rodada.' }); return }
 
-      const guess = normalize(data?.guess ?? '')
+      // Per-player guess lock — prevents double-submission from network retries
+      const guessLock = `guesslock:${room.code}:${room.currentRound}:${socket.id}`
+      const lockAcquired = await redis.set(guessLock, '1', 'EX', 10, 'NX')
+      if (!lockAcquired) return
+
+      const rawGuess = data?.guess
+      if (typeof rawGuess !== 'string' || rawGuess.length > 20) {
+        await redis.del(guessLock)
+        return
+      }
+      const guess = normalize(rawGuess)
       if (guess.length !== 5) {
+        await redis.del(guessLock)
         socket.emit('guess_result', { valid: false, message: 'Palavra deve ter 5 letras.' })
         return
       }
       if (!isValidGuess(guess)) {
+        await redis.del(guessLock)
         socket.emit('guess_result', { valid: false, message: 'Palavra não encontrada.' })
         return
       }
@@ -271,9 +283,8 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       const room = await getRoomBySocketId(redis, socket.id)
       await removeSocketRoom(redis, socket.id)
 
+      if (room) clearRoomTimer(room.code)
       if (!room || room.status === 'finished') return
-
-      clearRoomTimer(room.code)
 
       const playerIdx = getPlayerIndex(room, socket.id)
       if (playerIdx === -1) return
@@ -292,7 +303,7 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
       }
 
       // Transfer host if the disconnected player was host
-      if (wasHost && !wasPlaying) {
+      if (wasHost) {
         transferHost(room)
         io.to(room.code).emit('host_changed', {
           hostName: room.players.find(p => p.socketId === room.hostSocketId)?.name ?? '',
@@ -319,6 +330,7 @@ export function registerHandlers(io: Server, socket: Socket, redis: Redis) {
             io.to(winner.socketId).emit('match_end', {
               winnerName: winner.name,
               scores: { [winner.name]: winner.score },
+              rounds: room.history,
             })
           }, 2000)
         }

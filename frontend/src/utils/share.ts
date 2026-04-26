@@ -15,6 +15,11 @@ export function decodePayload(encoded: string): SharePayload | null {
     const p = JSON.parse(json)
     if (typeof p !== 'object' || p === null) return null
     if (!('w' in p) || !Array.isArray(p.s) || typeof p.t !== 'number') return null
+    if (!p.s.every((e: unknown) =>
+      typeof e === 'object' && e !== null &&
+      typeof (e as any).n === 'string' &&
+      typeof (e as any).r === 'number'
+    )) return null
     return p as SharePayload
   } catch {
     return null

@@ -141,6 +141,15 @@ describe('joinRoom', () => {
     expect(await joinRoom(redis, room.code, 's3', 'Carol')).toBeNull()
   })
 
+  it('returns null when player name is already taken (case-insensitive)', async () => {
+    const redis = makeRedisMock()
+    const room = await createRoom(redis, 's1', 'Alice', 3, 3)
+    expect(await joinRoom(redis, room.code, 's2', 'alice')).toBeNull()
+    expect(await joinRoom(redis, room.code, 's2', 'ALICE')).toBeNull()
+    // different name should succeed
+    expect(await joinRoom(redis, room.code, 's2', 'Bob')).not.toBeNull()
+  })
+
   it('returns null when room is already playing', async () => {
     const redis = makeRedisMock()
     const room = await createRoom(redis, 's1', 'Alice', 2, 3)
