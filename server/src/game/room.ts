@@ -1,5 +1,5 @@
 import { Redis } from 'ioredis'
-import { Room, Player, PlayerRoundState, LobbyRoom } from '../types'
+import { Room, Player, PlayerRoundState, LobbyRoom, RoundHistoryEntry } from '../types'
 import { pickRandomWord, getDisplayWord } from './words'
 
 const ROOM_TTL = 3600
@@ -46,6 +46,7 @@ export async function createRoom(
     currentWord: '',
     currentWordDisplay: '',
     roundStates: [emptyRoundState()],
+    history: [],
   }
   await saveRoom(redis, room)
   if (isPublic) await redis.sadd(LOBBY_KEY, code)
@@ -99,6 +100,21 @@ export async function getLobbyRooms(redis: Redis): Promise<LobbyRoom[]> {
     })
   }
   return results
+}
+
+export function buildRoundHistory(room: Room, winnerName: string | null): RoundHistoryEntry {
+  return {
+    round: room.currentRound,
+    word: room.currentWordDisplay || room.currentWord,
+    winnerName,
+    playerResults: Object.fromEntries(
+      room.players.map((p, i) => [p.name, {
+        guesses: room.roundStates[i].guesses.map(getDisplayWord),
+        results: room.roundStates[i].results,
+        solved: room.roundStates[i].solved,
+      }])
+    ),
+  }
 }
 
 export function transferHost(room: Room): void {

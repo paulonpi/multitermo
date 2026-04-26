@@ -6,7 +6,7 @@ import {
   createRoom, joinRoom, getRoom, saveRoom,
   getRoomBySocketId, setSocketRoom, removeSocketRoom,
   getPlayerIndex, advanceRound,
-  deleteRoom, removeFromLobby, getLobbyRooms, transferHost,
+  deleteRoom, removeFromLobby, getLobbyRooms, transferHost, buildRoundHistory,
 } from '../game/room'
 import { Room } from '../types'
 
@@ -384,6 +384,9 @@ async function resolveRound(io: Server, redis: Redis, room: Room, timedOut: bool
 
   if (winnerIdx !== null) room.players[winnerIdx].score++
 
+  const roundWinnerName = winnerIdx !== null ? room.players[winnerIdx].name : null
+  room.history.push(buildRoundHistory(room, roundWinnerName))
+
   const scores = Object.fromEntries(room.players.map(p => [p.name, p.score]))
   const playerResults = Object.fromEntries(
     room.players.map((p, i) => [p.name, {
@@ -410,11 +413,20 @@ async function resolveRound(io: Server, redis: Redis, room: Room, timedOut: bool
     const topPlayers = room.players.filter(p => p.score === maxScore)
     const matchWinner = topPlayers.length === 1 ? topPlayers[0] : null
 
+    const matchPayload = {
+      winnerName: matchWinner?.name ?? null,
+      scores,
+      rounds: room.history,
+    }
+
+    await redis.setex(
+      `match:${room.code}`,
+      86400,
+      JSON.stringify({ ...matchPayload, players: room.players.map(p => p.name) })
+    )
+
     setTimeout(() => {
-      io.to(room.code).emit('match_end', {
-        winnerName: matchWinner?.name ?? null,
-        scores,
-      })
+      io.to(room.code).emit('match_end', matchPayload)
     }, NEXT_ROUND_DELAY_MS)
   } else {
     advanceRound(room)

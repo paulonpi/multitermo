@@ -21,9 +21,21 @@ export interface RoundEndData {
   timedOut?: boolean
 }
 
+export interface RoundHistoryEntry {
+  round: number
+  word: string
+  winnerName: string | null
+  playerResults: Record<string, {
+    guesses: string[]
+    results: TileState[][]
+    solved: boolean
+  }>
+}
+
 export interface MatchEndData {
   winnerName: string | null
   scores: Record<string, number>
+  rounds: RoundHistoryEntry[]
 }
 
 export type Screen = 'home' | 'lobby' | 'create_room' | 'waiting' | 'game' | 'round_end' | 'match_end' | 'how_to_play'

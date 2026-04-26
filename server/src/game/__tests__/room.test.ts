@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Redis } from 'ioredis'
-import { createRoom, joinRoom, getRoom, advanceRound, getPlayerIndex, getLobbyRooms, transferHost } from '../room'
+import { createRoom, joinRoom, getRoom, advanceRound, getPlayerIndex, getLobbyRooms, transferHost, buildRoundHistory } from '../room'
 
 // Mock the words module so tests don't need the word-list files on disk
 vi.mock('../words', () => ({
@@ -58,6 +58,12 @@ describe('createRoom', () => {
     const fetched = await getRoom(redis, room.code)
     expect(fetched).not.toBeNull()
     expect(fetched!.code).toBe(room.code)
+  })
+
+  it('initializes history as empty array', async () => {
+    const redis = makeRedisMock()
+    const room = await createRoom(redis, 's1', 'Alice', 2, 3)
+    expect(room.history).toEqual([])
   })
 
   it('sets isPublic false and hostSocketId by default', async () => {
@@ -211,6 +217,49 @@ describe('transferHost', () => {
     const room = { hostSocketId: 's1', players: [] } as any
     transferHost(room)
     expect(room.hostSocketId).toBe('s1')
+  })
+})
+
+// ─── buildRoundHistory ────────────────────────────────────────────────────────
+
+describe('buildRoundHistory', () => {
+  const room = {
+    currentRound: 2,
+    currentWord: 'gatos',
+    currentWordDisplay: 'gatos',
+    players: [
+      { socketId: 's1', name: 'Alice', score: 1 },
+      { socketId: 's2', name: 'Bob',   score: 0 },
+    ],
+    roundStates: [
+      { guesses: ['gatos'], results: [['correct','correct','correct','correct','correct']], done: true, solved: true  },
+      { guesses: ['pedra'], results: [['absent', 'absent', 'absent', 'absent', 'absent']], done: true, solved: false },
+    ],
+  } as any
+
+  it('captures round number and word', () => {
+    const entry = buildRoundHistory(room, 'Alice')
+    expect(entry.round).toBe(2)
+    expect(entry.word).toBe('gatos')
+  })
+
+  it('sets winnerName correctly', () => {
+    expect(buildRoundHistory(room, 'Alice').winnerName).toBe('Alice')
+    expect(buildRoundHistory(room, null).winnerName).toBeNull()
+  })
+
+  it('includes guesses and results for each player', () => {
+    const entry = buildRoundHistory(room, 'Alice')
+    expect(entry.playerResults['Alice'].guesses).toEqual(['gatos'])
+    expect(entry.playerResults['Alice'].solved).toBe(true)
+    expect(entry.playerResults['Bob'].guesses).toEqual(['pedra'])
+    expect(entry.playerResults['Bob'].solved).toBe(false)
+  })
+
+  it('falls back to currentWord when currentWordDisplay is empty', () => {
+    const r = { ...room, currentWordDisplay: '' }
+    const entry = buildRoundHistory(r, null)
+    expect(entry.word).toBe('gatos')
   })
 })
 

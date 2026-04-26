@@ -29,6 +29,18 @@ export interface Room {
   currentWord: string
   currentWordDisplay: string
   roundStates: PlayerRoundState[]
+  history: RoundHistoryEntry[]
+}
+
+export interface RoundHistoryEntry {
+  round: number
+  word: string
+  winnerName: string | null
+  playerResults: Record<string, {
+    guesses: string[]
+    results: TileState[][]
+    solved: boolean
+  }>
 }
 
 export interface LobbyRoom {
